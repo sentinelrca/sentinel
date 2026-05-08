@@ -1,0 +1,62 @@
+syntax = "proto3";
+package sentinel.v1;
+
+option go_package = "github.com/sentinel-ai/sentinel/gen/go/sentinel/v1";
+
+// SpanKind classifies what a span represents in the agent execution.
+enum SpanKind {
+  SPAN_KIND_UNSPECIFIED  = 0;
+  SPAN_KIND_LLM_CALL     = 1;  // gen_ai.operation.name = "chat" or "completion"
+  SPAN_KIND_TOOL_INVOKE  = 2;  // gen_ai.operation.name = "execute_tool"
+  SPAN_KIND_AGENT_INVOKE = 3;  // gen_ai.operation.name = "invoke_agent"
+  SPAN_KIND_RETRIEVAL    = 4;  // gen_ai.operation.name = "retrieve"
+  SPAN_KIND_CHAIN        = 5;  // orchestration / chain step
+  SPAN_KIND_HANDOFF      = 6;  // explicit agent-to-agent handoff
+  SPAN_KIND_GENERIC      = 7;  // unknown — preserved, never dropped
+}
+
+enum SpanStatus {
+  SPAN_STATUS_UNSPECIFIED = 0;
+  SPAN_STATUS_OK          = 1;
+  SPAN_STATUS_ERROR       = 2;
+  SPAN_STATUS_TIMEOUT     = 3;
+}
+
+enum EdgeKind {
+  EDGE_KIND_UNSPECIFIED  = 0;
+  EDGE_KIND_PARENT_CHILD = 1;
+  EDGE_KIND_AGENT_HANDOFF = 2;
+  EDGE_KIND_RETRY        = 3;
+}
+
+// NormalizedSpan is the source-agnostic internal representation of a single span.
+// All source-specific formats (Langfuse, LangSmith, Arize) are mapped to this.
+message NormalizedSpan {
+  string span_id        = 1;
+  string trace_id       = 2;
+  string parent_span_id = 3;  // empty string = root span
+  string name           = 4;
+  SpanKind kind         = 5;
+  SpanStatus status     = 6;
+  int64 start_time_ns   = 7;  // Unix nanoseconds
+  int64 end_time_ns     = 8;  // Unix nanoseconds
+  string workspace_id   = 9;
+
+  // Extracted gen_ai.* fields (null-safe — absent if not present in source)
+  string model          = 10;
+  string agent_name     = 11;
+  int64 input_tokens    = 12;
+  int64 output_tokens   = 13;
+  int32 retry_count     = 14;
+  string error_message  = 15;
+
+  // All source attributes preserved verbatim as JSON string.
+  // Future rules can read arbitrary attributes without schema changes.
+  string attributes_json = 16;
+}
+
+message FlowEdge {
+  string source_span_id = 1;
+  string target_span_id = 2;
+  EdgeKind kind         = 3;
+}

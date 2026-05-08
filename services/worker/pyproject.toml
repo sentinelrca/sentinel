@@ -1,0 +1,36 @@
+[project]
+name = "sentinel-worker"
+version = "0.1.0"
+description = "SentinelAI Celery async worker"
+requires-python = ">=3.12"
+dependencies = [
+    "celery[redis]>=5.4",
+    "pydantic>=2.7",
+    "sqlalchemy[asyncio]>=2.0",
+    "asyncpg>=0.29",
+    "python-dotenv>=1.0",
+    "sentinel-pipeline",
+    "sentinel-connectors-base",
+    "sentinel-connectors-langfuse",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.2",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.4",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sentinel_worker"]

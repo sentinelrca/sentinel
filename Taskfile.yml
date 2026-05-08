@@ -1,0 +1,80 @@
+version: "3"
+
+vars:
+  PYTHON_SERVICES:
+    - services/ingestor
+    - services/pipeline
+    - services/api
+    - services/worker
+    - connectors/_base
+    - connectors/langfuse
+    - tools/cli
+
+tasks:
+  up:
+    desc: Start all infrastructure (Postgres, ClickHouse, Redis)
+    cmd: docker compose up -d postgres clickhouse redis
+    silent: false
+
+  down:
+    desc: Stop all infrastructure
+    cmd: docker compose down
+
+  up:all:
+    desc: Start infrastructure + all services
+    cmd: docker compose up -d
+
+  build:
+    desc: Build all Docker images
+    cmd: docker compose build
+
+  migrate:
+    desc: Run Postgres migrations
+    dir: infra/migrations/postgres
+    cmd: uv run alembic upgrade head
+
+  test:
+    desc: Run all tests (unit only, no Docker required)
+    dir: tests
+    cmd: uv run pytest unit/ -v
+
+  test:integration:
+    desc: Run integration tests (requires task up)
+    dir: tests
+    cmd: uv run pytest integration/ -v
+
+  test:all:
+    desc: Run all tests including integration
+    deps: [test, test:integration]
+
+  lint:
+    desc: Run ruff linter across all Python services
+    cmds:
+      - uv run ruff check services/ connectors/ tools/ tests/
+      - uv run ruff format --check services/ connectors/ tools/ tests/
+
+  fmt:
+    desc: Auto-format all Python code
+    cmd: uv run ruff format services/ connectors/ tools/ tests/
+
+  sync:
+    desc: Install all Python dependencies across services
+    cmds:
+      - for: { var: PYTHON_SERVICES }
+        cmd: cd {{.ITEM}} && uv sync
+
+  logs:
+    desc: Tail logs from all running services
+    cmd: docker compose logs -f
+
+  logs:worker:
+    desc: Tail worker logs
+    cmd: docker compose logs -f worker
+
+  logs:ingestor:
+    desc: Tail ingestor logs
+    cmd: docker compose logs -f ingestor
+
+  ps:
+    desc: Show running containers
+    cmd: docker compose ps

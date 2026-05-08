@@ -1,0 +1,37 @@
+[project]
+name = "sentinel-ingestor"
+version = "0.1.0"
+description = "SentinelAI OTLP/HTTP ingestion endpoint"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.111",
+    "uvicorn[standard]>=0.30",
+    "pydantic>=2.7",
+    "opentelemetry-proto>=1.25",
+    "protobuf>=5.27",
+    "celery[redis]>=5.4",
+    "python-dotenv>=1.0",
+    "sentinel-pipeline",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.2",
+    "pytest-asyncio>=0.23",
+    "httpx>=0.27",
+    "ruff>=0.4",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sentinel_ingestor"]

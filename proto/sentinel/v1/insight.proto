@@ -1,0 +1,35 @@
+syntax = "proto3";
+package sentinel.v1;
+
+option go_package = "github.com/sentinel-ai/sentinel/gen/go/sentinel/v1";
+
+enum Severity {
+  SEVERITY_UNSPECIFIED = 0;
+  SEVERITY_INFO        = 1;
+  SEVERITY_WARNING     = 2;
+  SEVERITY_HIGH        = 3;
+  SEVERITY_CRITICAL    = 4;
+}
+
+// Tier determines which subscription tier unlocks a rule.
+enum Tier {
+  TIER_FREE       = 0;
+  TIER_STARTER    = 1;
+  TIER_PRO        = 2;
+  TIER_ENTERPRISE = 3;
+}
+
+// Insight is the output of a rule firing against a flow graph.
+message Insight {
+  string id               = 1;
+  string workspace_id     = 2;
+  string trace_id         = 3;
+  string rule_id          = 4;
+  Severity severity       = 5;
+  string title            = 6;
+  string detail           = 7;           // human-readable explanation of what was found
+  string recommendation   = 8;           // specific, actionable fix
+  repeated string affected_span_ids = 9;
+  string evidence_json    = 10;          // quantitative data backing the insight
+  int64 created_at_ns     = 11;
+}
