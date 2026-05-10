@@ -1,8 +1,8 @@
 # SentinelRCA
 
-**Diagnose failures. Optimize performance. Improve architecture. For AI agents.**
+**Diagnose failures. Optimize performance. Improve architecture. Scale with confidence. For AI agents.**
 
-SentinelRCA connects to your existing observability tools (LangSmith, Langfuse, OpenTelemetry) and tells you *why* your AI agents fail, *what's slowing them down*, and *what to fix before it becomes a production incident* — not just what happened.
+SentinelRCA connects to your existing observability tools (LangSmith, Langfuse, OpenTelemetry) and tells you *why* your AI agents fail, *what's slowing them down*, *what to fix before it becomes a production incident*, and *where your system breaks under load* — not just what happened.
 
 ```
 $ sentinel analyze --source langsmith --api-key lsv2_pt_...
@@ -33,6 +33,7 @@ SentinelRCA reconstructs the **call graph** from your traces and runs determinis
 | **Diagnose** | Agent loops, retry storms, retrieval failures, cascading errors |
 | **Optimize** | Sequential tools that could parallelize, latency spikes, context bloat, suboptimal model routing |
 | **Improve** | Missing memory layer, no guardrails, unvalidated LLM output, architectural gaps before they cause failures |
+| **Scale** | Fan-out rate limits, thundering herd, orchestrator bottlenecks, latency degradation under load |
 
 ---
 
