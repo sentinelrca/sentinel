@@ -12,7 +12,17 @@ dependencies = [
     "bcrypt>=4.1",
     "python-dotenv>=1.0",
     "sentinel-pipeline",
+    "sentinel-connectors-base",
+    "sentinel-connectors-langfuse",
+    "sentinel-connectors-langsmith",
+    "clickhouse-driver>=0.2",
 ]
+
+[tool.uv.sources]
+sentinel-pipeline             = { path = "../../services/pipeline",   editable = true }
+sentinel-connectors-base      = { path = "../../connectors/_base",    editable = true }
+sentinel-connectors-langfuse  = { path = "../../connectors/langfuse", editable = true }
+sentinel-connectors-langsmith = { path = "../../connectors/langsmith", editable = true }
 
 [project.optional-dependencies]
 dev = [
