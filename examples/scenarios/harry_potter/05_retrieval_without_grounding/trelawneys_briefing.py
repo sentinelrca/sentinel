@@ -33,7 +33,7 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langgraph.prebuilt import create_react_agent
 
-sys.path.insert(0, str(Path(__file__).parents[4]))
+sys.path.insert(0, str(Path(__file__).parents[3]))
 from shared.llm import get_llm
 from shared.observability import configure
 from scenarios.harry_potter.shared.tools import accio
