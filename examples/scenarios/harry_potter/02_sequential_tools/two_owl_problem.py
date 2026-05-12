@@ -21,10 +21,12 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import TypedDict
 
 from dotenv import load_dotenv
-from langchain_core.messages import HumanMessage
-from langgraph.prebuilt import create_react_agent
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.runnables import RunnableConfig
+from langgraph.graph import END, StateGraph
 
 sys.path.insert(0, str(Path(__file__).parents[3]))
 from shared.llm import get_llm
@@ -34,39 +36,69 @@ from scenarios.harry_potter.shared.tools import marauders_map, owl_post
 load_dotenv()
 
 RON_SYSTEM = """You are Ron Weasley, DA field coordinator.
-You are thorough but work sequentially — you complete one task fully before starting the next.
+You are given two pre-dispatch tasks to do before a raid.
+Do them in order — first the Marauder's Map check, then the owl dispatch.
+Report what you found from the map, then confirm the owl was sent."""
 
-Instructions:
-1. First, check the Marauder's Map for the target area to understand enemy positions.
-2. Only after the map check is complete, send an owl to Dumbledore summarising what you found.
-Report what you learned from each step."""
+
+class State(TypedDict):
+    messages: list
+    map_result: str
+    owl_result: str
+
+
+def ron_prepares(state: State, config: RunnableConfig) -> dict:
+    """Ron's pre-raid coordination node — calls both tools sequentially."""
+    # Step 1: check the map
+    map_result = marauders_map.invoke(
+        {"area": "Astronomy Tower"},
+        config=config,
+    )
+
+    # Step 2: send the owl — could have been in parallel, but Ron goes one at a time
+    owl_result = owl_post.invoke(
+        {"recipient": "Dumbledore", "message": "DA team is assembled and ready for the raid."},
+        config=config,
+    )
+    return {"map_result": map_result, "owl_result": owl_result}
+
+
+def ron_reports(state: State, config: RunnableConfig) -> dict:
+    """Ron summarises the result using the LLM."""
+    llm = get_llm()
+    messages = [
+        SystemMessage(RON_SYSTEM),
+        HumanMessage(
+            f"Map check result: {state['map_result']}\n"
+            f"Owl dispatch result: {state['owl_result']}\n"
+            "Summarise what you did and what we know before the raid."
+        ),
+    ]
+    response = llm.with_config(config).invoke(messages)
+    return {"messages": [response]}
 
 
 if __name__ == "__main__":
     obs = configure()
-    llm = get_llm()
 
-    app = create_react_agent(
-        llm,
-        tools=[marauders_map, owl_post],
-        state_modifier=RON_SYSTEM,
-    )
+    graph = StateGraph(State)
+    graph.add_node("ron_prepares", ron_prepares)
+    graph.add_node("ron_reports", ron_reports)
+    graph.set_entry_point("ron_prepares")
+    graph.add_edge("ron_prepares", "ron_reports")
+    graph.add_edge("ron_reports", END)
+    app = graph.compile()
 
     print("=== Mission Prep: Pre-Raid Intelligence Gathering ===")
     print("Ron is coordinating... (watch the tool call order)\n")
 
     result = app.invoke(
-        {"messages": [HumanMessage(
-            content="Ron, we need two things before the raid: "
-                    "check the Marauder's Map for the Astronomy Tower area, "
-                    "and send an owl to Dumbledore saying the team is ready. "
-                    "Get both done."
-        )]},
+        {"messages": [], "map_result": "", "owl_result": ""},
         config={"callbacks": obs.callbacks},
     )
 
     print(result["messages"][-1].content)
     print("\n--- SentinelAI would flag: sequential_tools ---")
-    print("marauders_map and owl_post share the same parent span.")
+    print("marauders_map and owl_post share the same parent span (ron_prepares).")
     print("Neither depends on the other. They ran back-to-back instead of in parallel.")
     print("Fix: use async tool execution or a fan-out node. Fred and George never queue.")

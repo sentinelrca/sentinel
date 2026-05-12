@@ -48,7 +48,7 @@ if __name__ == "__main__":
     app = create_react_agent(
         llm,
         tools=[alohomora],
-        state_modifier=DOBBY_SYSTEM,
+        prompt=DOBBY_SYSTEM,
     )
 
     print("=== Mission: Access Ministry Records Room ===")
