@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ── Python: lint ───────────────────────────────────────────────────────────
+  lint-python:
+    name: Lint Python
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+
+      - name: Ruff — services
+        run: |
+          for dir in services/api services/pipeline services/worker services/ingestor; do
+            echo "▶ ruff $dir"
+            uv run --project "$dir" ruff check src/
+          done
+
+      - name: Ruff — connectors
+        run: |
+          for dir in connectors/_base connectors/langfuse connectors/langsmith; do
+            echo "▶ ruff $dir"
+            uv run --project "$dir" ruff check src/
+          done
+
+  # ── Python: unit tests ────────────────────────────────────────────────────
+  test-python:
+    name: Unit Tests (Python)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+
+      - name: Install test dependencies
+        working-directory: tests
+        run: uv sync --no-install-project
+
+      - name: Run unit tests
+        working-directory: tests
+        run: uv run --no-project pytest unit/ -v --tb=short
+        env:
+          DATABASE_URL: "postgresql+asyncpg://sentinel:sentinel@localhost:5432/sentinel"
+          CLICKHOUSE_URL: "clickhouse://localhost:9000/sentinel"
+
+  # ── TypeScript: lint + type check ─────────────────────────────────────────
+  lint-typescript:
+    name: Lint TypeScript
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: services/ui/package-lock.json
+
+      - name: Install dependencies
+        working-directory: services/ui
+        run: npm ci
+
+      - name: ESLint
+        working-directory: services/ui
+        run: npm run lint
+
+      - name: TypeScript type check
+        working-directory: services/ui
+        run: npx tsc --noEmit
