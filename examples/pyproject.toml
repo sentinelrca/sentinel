@@ -10,7 +10,7 @@ dependencies = [
     "langchain-openai>=0.2",
     "langchain-anthropic>=0.2",
     "langchain-ollama>=0.2",
-    "langfuse>=2.0",
+    "langfuse>=3.0",
     "langsmith>=0.1",
     "python-dotenv>=1.0",
 ]

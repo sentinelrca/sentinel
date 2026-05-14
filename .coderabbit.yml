@@ -1,0 +1,40 @@
+language: en-US
+
+reviews:
+  profile: chill          # assertive | chill — chill = fewer nitpicks
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: false
+
+  path_instructions:
+    - path: "services/api/**"
+      instructions: >
+        FastAPI service. Check for: missing auth dependency on new routes,
+        secrets leaking into API responses, unhandled DB exceptions.
+
+    - path: "services/pipeline/**"
+      instructions: >
+        Core rule engine. Rules must not access span input/output content
+        (store_content=False by default). Verify new rules have a negative
+        test case (must NOT fire).
+
+    - path: "connectors/**"
+      instructions: >
+        Connector adapters. Must implement the Connector ABC. Check that
+        input/output fields are stripped when store_content is False.
+
+    - path: "services/ui/**"
+      instructions: >
+        Next.js 14 App Router. Server components fetch from API directly.
+        Client components are marked "use client". No secrets in client
+        components.
+
+    - path: "tests/**"
+      instructions: >
+        Unit tests run without Docker. No real DB or network calls — mock
+        everything. Each new rule needs a positive test and a negative test.
+
+chat:
+  auto_reply: true

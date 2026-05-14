@@ -118,6 +118,19 @@ services:
       redis:
         condition: service_healthy
 
+  ui:
+    build:
+      context: services/ui
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      - SENTINEL_API_URL=http://api:8000
+      - SENTINEL_API_KEY=${SENTINEL_API_KEY:-}
+    depends_on:
+      api:
+        condition: service_healthy
+
 volumes:
   postgres_data:
   clickhouse_data:

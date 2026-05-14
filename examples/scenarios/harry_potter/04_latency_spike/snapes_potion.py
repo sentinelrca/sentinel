@@ -28,7 +28,7 @@ from dotenv import load_dotenv
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.graph import END, StateGraph
 
-sys.path.insert(0, str(Path(__file__).parents[4]))
+sys.path.insert(0, str(Path(__file__).parents[3]))
 from shared.llm import get_llm
 from shared.observability import configure
 from scenarios.harry_potter.shared.tools import brew_potion, marauders_map, wingardium_leviosa

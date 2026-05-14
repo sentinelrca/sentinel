@@ -33,7 +33,8 @@ _KIND_MAP: dict[str, SpanKind] = {
     "generation": SpanKind.LLM_CALL,
     "tool":       SpanKind.TOOL_INVOKE,
     "retrieval":  SpanKind.RETRIEVAL,
-    "span":       SpanKind.CHAIN,
+    "span":       SpanKind.CHAIN,   # Langfuse v2 type name
+    "chain":      SpanKind.CHAIN,   # Langfuse v4 type name
 }
 
 
@@ -150,7 +151,8 @@ class LangfuseConnector(Connector):
             attributes={
                 "langfuse.type":    obs_type,
                 "langfuse.project": obs.get("projectId", ""),
-                **(obs.get("input") or {}),
+                # input may be a list (messages) or dict; only spread if dict
+                **(obs.get("input") if isinstance(obs.get("input"), dict) else {}),
             },
         )
 

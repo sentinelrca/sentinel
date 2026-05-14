@@ -77,3 +77,57 @@ def test_insight_contains_evidence():
     loop_insight = next(i for i in insights if "AgentA" in str(i.evidence))
     assert loop_insight.evidence["invocations"] == 3
     assert loop_insight.evidence["agent_name"] == "AgentA"
+
+
+def _chain_span(span_id, name, parent_id=None, offset_ms=0):
+    t0 = datetime(2026, 1, 1, tzinfo=timezone.utc) + timedelta(milliseconds=offset_ms)
+    return NormalizedSpan(
+        span_id=span_id, trace_id="t1", parent_span_id=parent_id,
+        name=name, kind=SpanKind.CHAIN, status=SpanStatus.OK,
+        start_time=t0, end_time=t0 + timedelta(milliseconds=100),
+        workspace_id="ws1",
+    )
+
+
+def _llm_span(span_id, parent_id, offset_ms=0):
+    t0 = datetime(2026, 1, 1, tzinfo=timezone.utc) + timedelta(milliseconds=offset_ms)
+    return NormalizedSpan(
+        span_id=span_id, trace_id="t1", parent_span_id=parent_id,
+        name="ChatOpenAI", kind=SpanKind.LLM_CALL, status=SpanStatus.OK,
+        start_time=t0, end_time=t0 + timedelta(milliseconds=50),
+        workspace_id="ws1",
+    )
+
+
+def test_fires_on_langgraph_repeated_chain_nodes():
+    """Path 3: LangGraph CHAIN nodes with same name + LLM child repeated 3× → rule fires."""
+    spans = [
+        _chain_span("root", "LangGraph"),
+        # hermione fires 3 times, each with an LLM child
+        _chain_span("h1", "hermione", parent_id="root", offset_ms=0),
+        _llm_span("h1_llm", parent_id="h1", offset_ms=10),
+        _chain_span("h2", "hermione", parent_id="root", offset_ms=200),
+        _llm_span("h2_llm", parent_id="h2", offset_ms=210),
+        _chain_span("h3", "hermione", parent_id="root", offset_ms=400),
+        _llm_span("h3_llm", parent_id="h3", offset_ms=410),
+    ]
+    graph    = build_graph(spans)
+    signals  = extract_signals(graph)
+    insights = rule.evaluate(graph, signals)
+    assert insights, "Expected agent_loop insight for repeated LangGraph node"
+    assert any(i.evidence.get("node_name") == "hermione" for i in insights)
+
+
+def test_no_fire_on_langgraph_routing_only_chain():
+    """Routing CHAIN spans (no LLM child) should not trigger the rule."""
+    spans = [
+        _chain_span("root", "LangGraph"),
+        # "after_hermione" routing spans — no LLM children, appear 3 times
+        _chain_span("r1", "after_hermione", parent_id="root", offset_ms=0),
+        _chain_span("r2", "after_hermione", parent_id="root", offset_ms=100),
+        _chain_span("r3", "after_hermione", parent_id="root", offset_ms=200),
+    ]
+    graph    = build_graph(spans)
+    signals  = extract_signals(graph)
+    insights = rule.evaluate(graph, signals)
+    assert not insights, "Routing-only spans should not trigger agent_loop"

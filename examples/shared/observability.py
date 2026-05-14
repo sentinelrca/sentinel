@@ -19,15 +19,13 @@ def configure() -> ObservabilityConfig:
 
 
 def _configure_langfuse() -> ObservabilityConfig:
-    _require("LANGFUSE_HOST", "LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY")
-    from langfuse.callback import CallbackHandler
+    _require("LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY")
+    # Langfuse v4: CallbackHandler reads LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY,
+    # and LANGFUSE_BASE_URL (or LANGFUSE_HOST) directly from the environment.
+    from langfuse.langchain import CallbackHandler
     return ObservabilityConfig(
         backend="langfuse",
-        callbacks=[CallbackHandler(
-            host=os.environ["LANGFUSE_HOST"],
-            public_key=os.environ["LANGFUSE_PUBLIC_KEY"],
-            secret_key=os.environ["LANGFUSE_SECRET_KEY"],
-        )],
+        callbacks=[CallbackHandler()],
     )
 
 

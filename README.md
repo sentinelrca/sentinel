@@ -39,11 +39,8 @@ SentinelRCA reconstructs the **call graph** from your traces and runs determinis
 
 ## Quickstart
 
+**CLI (stateless, no setup):**
 ```bash
-# Install
-pip install sentinel-cli   # coming soon — use uv for now
-
-# Analyze a LangSmith project
 cd tools/cli
 uv sync
 uv run sentinel analyze \
@@ -51,11 +48,20 @@ uv run sentinel analyze \
   --api-key lsv2_pt_YOUR_KEY \
   --project-name your-project
 
-# Analyze a Langfuse project
+# or Langfuse
 uv run sentinel analyze \
   --source langfuse \
   --public-key pk-lf-... \
   --secret-key sk-lf-...
+```
+
+**Web UI (persistent insight feed + flow graph):**
+```bash
+task up   # starts Postgres + ClickHouse + Redis
+cd infra/migrations/postgres && uv run alembic upgrade head
+cd services/api && uv run uvicorn sentinel_api.main:app --port 8000
+cp services/ui/.env.local.example services/ui/.env.local
+cd services/ui && npm install && npm run dev   # http://localhost:3001
 ```
 
 ---
@@ -121,9 +127,19 @@ cd infra/migrations/postgres && uv run alembic upgrade head
 # Start services
 cd services/api    && uv run uvicorn sentinel_api.main:app --reload --port 8000
 cd services/worker && uv run celery -A sentinel_worker.main worker --loglevel=info
+
+# Start web UI  →  http://localhost:3001
+cp services/ui/.env.local.example services/ui/.env.local
+# edit .env.local: set SENTINEL_API_KEY to a valid workspace API key
+cd services/ui && npm install && npm run dev
 ```
 
-Requires: Docker, [go-task](https://taskfile.dev), Python 3.12+, [uv](https://docs.astral.sh/uv/)
+Or run the full stack with Docker Compose (includes UI on port 3001):
+```bash
+SENTINEL_API_KEY=sk-sentinel-dev docker compose up
+```
+
+Requires: Docker, [go-task](https://taskfile.dev), Python 3.12+, [uv](https://docs.astral.sh/uv/), Node.js 20+
 
 ---
 
@@ -145,7 +161,7 @@ Connectors are always MIT licensed. See [CLAUDE.md](CLAUDE.md) for the full guid
 ```bash
 cd tests
 uv sync --no-install-project
-uv run --no-project pytest unit/ -v   # 56 tests, no Docker needed
+uv run --no-project pytest unit/ -v   # 58 tests, no Docker needed
 ```
 
 ---
