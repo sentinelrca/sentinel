@@ -48,6 +48,8 @@ export default function SourceForm({ onCreated, onCancel }: Props) {
         if (values[f.key]) config_json[f.key] = values[f.key];
       }
       const source = await createSource({ kind, alias: alias || undefined, config_json });
+      setValues({});
+      setAlias("");
       onCreated(source);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to create source");

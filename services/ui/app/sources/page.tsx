@@ -22,9 +22,9 @@ export default async function SourcesPage() {
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           {error}
         </div>
-      ) : (
-        <SourceList initialItems={data!.items} />
-      )}
+      ) : data ? (
+        <SourceList initialItems={data.items} />
+      ) : null}
     </div>
   );
 }

@@ -14,6 +14,8 @@ from ..middleware.auth import get_workspace
 
 router = APIRouter(prefix="/insights", tags=["insights"])
 
+_VALID_SEVERITIES = {"critical", "high", "warning", "info"}
+
 
 @router.get("")
 async def list_insights(
@@ -29,7 +31,13 @@ async def list_insights(
     async with get_session() as session:
         base = select(InsightRow).where(InsightRow.workspace_id == workspace.id)
         if severity:
-            base = base.where(InsightRow.severity == severity)
+            sev_lower = severity.lower()
+            if sev_lower not in _VALID_SEVERITIES:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid severity '{severity}'. Valid values: {sorted(_VALID_SEVERITIES)}",
+                )
+            base = base.where(InsightRow.severity == sev_lower)
         if rule_id:
             base = base.where(InsightRow.rule_id == rule_id)
         if trace_id:

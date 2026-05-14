@@ -90,18 +90,30 @@ export default function FlowGraphCanvas({ nodes, edges, affectedSpanIds }: Props
     [nodes, positions, affectedSet]
   );
 
+  const nodeIds = useMemo(() => new Set(nodes.map((n) => n.id)), [nodes]);
+
   const rfEdges: Edge[] = useMemo(
     () =>
-      edges.map((e, i) => ({
-        id: `e${i}`,
-        source: e.source,
-        target: e.target,
-        type: "smoothstep",
-        animated: e.kind === "loop_back",
-        style: { stroke: "#94a3b8", strokeWidth: 1.5 },
-      })),
-    [edges]
+      edges
+        .filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target))
+        .map((e, i) => ({
+          id: `e${i}`,
+          source: e.source,
+          target: e.target,
+          type: "smoothstep",
+          animated: e.kind === "loop_back",
+          style: { stroke: "#94a3b8", strokeWidth: 1.5 },
+        })),
+    [edges, nodeIds]
   );
+
+  if (nodes.length === 0) {
+    return (
+      <div className="flex h-24 items-center justify-center text-sm text-slate-400">
+        No spans to display
+      </div>
+    );
+  }
 
   return (
     <div style={{ height: Math.max(400, nodes.length * 90 + 80) }}>

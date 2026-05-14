@@ -28,11 +28,11 @@ export default async function InsightDetailPage({ params }: Props) {
     }
   }
 
-  if (insightError) {
+  if (insightError || !insight) {
     return (
       <div className="p-6">
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          {insightError}
+          {insightError ?? "Insight not found"}
         </div>
       </div>
     );
@@ -49,12 +49,12 @@ export default async function InsightDetailPage({ params }: Props) {
 
       {/* Header */}
       <div className="mb-6 flex items-start gap-3">
-        <SeverityBadge severity={insight!.severity} size="lg" />
+        <SeverityBadge severity={insight.severity} size="lg" />
         <div>
-          <h1 className="text-xl font-semibold text-slate-900">{insight!.title}</h1>
+          <h1 className="text-xl font-semibold text-slate-900">{insight.title}</h1>
           <p className="mt-0.5 text-sm text-slate-500">
-            Rule: <span className="font-mono">{insight!.rule_id}</span> &middot; Trace:{" "}
-            <span className="font-mono">{insight!.trace_id}</span>
+            Rule: <span className="font-mono">{insight.rule_id}</span> &middot; Trace:{" "}
+            <span className="font-mono">{insight.trace_id}</span>
           </p>
         </div>
       </div>
@@ -65,24 +65,24 @@ export default async function InsightDetailPage({ params }: Props) {
           <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
             Detail
           </h2>
-          <p className="text-sm text-slate-700">{insight!.detail}</p>
+          <p className="text-sm text-slate-700">{insight.detail}</p>
         </div>
         <div className="rounded-lg border border-slate-200 bg-white p-4">
           <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
             Recommendation
           </h2>
-          <p className="text-sm text-slate-700">{insight!.recommendation}</p>
+          <p className="text-sm text-slate-700">{insight.recommendation}</p>
         </div>
       </div>
 
       {/* Evidence */}
-      {insight!.evidence && (
+      {insight.evidence && (
         <div className="mb-6 rounded-lg border border-slate-200 bg-white p-4">
           <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
             Evidence
           </h2>
           <pre className="overflow-x-auto text-xs text-slate-600">
-            {JSON.stringify(insight!.evidence, null, 2)}
+            {JSON.stringify(insight.evidence, null, 2)}
           </pre>
         </div>
       )}
@@ -107,7 +107,7 @@ export default async function InsightDetailPage({ params }: Props) {
             <FlowGraph
               nodes={flow.nodes}
               edges={flow.edges}
-              affectedSpanIds={insight!.affected_span_ids}
+              affectedSpanIds={insight.affected_span_ids}
             />
           </>
         ) : null}

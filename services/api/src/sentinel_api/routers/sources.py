@@ -87,12 +87,25 @@ async def delete_source(
         )
 
 
+_SECRET_SUBSTRINGS = ("secret", "token", "password", "credential")
+_SECRET_EXACT = {"api_key", "auth", "authorization"}
+
+
+def _redact_config(config: dict[str, Any]) -> dict[str, Any]:
+    redacted = {}
+    for k, v in config.items():
+        key_lower = k.lower()
+        if k in _SECRET_EXACT or any(s in key_lower for s in _SECRET_SUBSTRINGS):
+            redacted[k] = "***"
+        elif isinstance(v, dict):
+            redacted[k] = _redact_config(v)
+        else:
+            redacted[k] = v
+    return redacted
+
+
 def _row_to_dict(r: SourceRow) -> dict[str, Any]:
-    config = dict(r.config_json or {})
-    # Redact secrets before sending to client
-    for key in ("secret_key", "api_key", "token", "password"):
-        if key in config:
-            config[key] = "***"
+    config = _redact_config(dict(r.config_json or {}))
     return {
         "id": r.id,
         "kind": r.kind,

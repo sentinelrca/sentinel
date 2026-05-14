@@ -35,16 +35,16 @@ export default async function InsightsPage({ searchParams }: Props) {
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           {error}
         </div>
-      ) : (
+      ) : data ? (
         <InsightFeed
-          items={data!.items}
-          total={data!.total}
+          items={data.items}
+          total={data.total}
           page={page}
           limit={limit}
           currentSeverity={searchParams.severity}
           currentRuleId={searchParams.rule_id}
         />
-      )}
+      ) : null}
     </div>
   );
 }
