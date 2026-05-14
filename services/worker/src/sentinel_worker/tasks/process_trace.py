@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import uuid
 from datetime import datetime, timezone
 
 from sentinel_worker.main import app
@@ -50,23 +49,49 @@ async def _process_trace(workspace_id: str, trace_id: str, tier: Tier) -> dict:
     if not insights:
         return {"trace_id": trace_id, "insights": 0}
 
+    # Deduplicate by rule_id — same rule may fire multiple times (e.g. agent_loop
+    # fires once per cycling node). Merge affected_span_ids; keep highest severity.
+    deduped: dict[str, object] = {}
+    for ins in insights:
+        if ins.rule_id not in deduped:
+            deduped[ins.rule_id] = ins
+        else:
+            existing = deduped[ins.rule_id]
+            merged_spans = list(dict.fromkeys(existing.affected_span_ids + ins.affected_span_ids))
+            deduped[ins.rule_id] = existing.model_copy(update={"affected_span_ids": merged_spans})
+
     # 4. Persist insights (upsert by workspace_id + trace_id + rule_id)
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
     async with get_session() as session:
-        for insight in insights:
-            row = InsightRow(
-                id=insight.id,
-                workspace_id=insight.workspace_id,
-                trace_id=insight.trace_id,
-                rule_id=insight.rule_id,
-                severity=insight.severity.value,
-                title=insight.title,
-                detail=insight.detail,
-                recommendation=insight.recommendation,
-                affected_span_ids=insight.affected_span_ids,
-                evidence=insight.evidence,
-                status="open",
+        for insight in deduped.values():
+            stmt = (
+                pg_insert(InsightRow)
+                .values(
+                    id=insight.id,
+                    workspace_id=insight.workspace_id,
+                    trace_id=insight.trace_id,
+                    rule_id=insight.rule_id,
+                    severity=insight.severity.value,
+                    title=insight.title,
+                    detail=insight.detail,
+                    recommendation=insight.recommendation,
+                    affected_span_ids=insight.affected_span_ids,
+                    evidence=insight.evidence,
+                    status="open",
+                )
+                .on_conflict_do_update(
+                    constraint="uq_insights_trace_rule",
+                    set_=dict(
+                        severity=insight.severity.value,
+                        title=insight.title,
+                        detail=insight.detail,
+                        recommendation=insight.recommendation,
+                        affected_span_ids=insight.affected_span_ids,
+                        evidence=insight.evidence,
+                    ),
+                )
             )
-            await session.merge(row)  # upsert by primary key
+            await session.execute(stmt)
 
     logger.info("Processed trace %s: %d insight(s)", trace_id, len(insights))
     return {"trace_id": trace_id, "insights": len(insights)}

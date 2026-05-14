@@ -93,6 +93,29 @@ def insert_spans(spans: list[NormalizedSpan]) -> None:
         raise
 
 
+def insert_spans_dedup(spans: list[NormalizedSpan]) -> int:
+    """Insert spans, skipping span_ids already present in ClickHouse. Returns new-row count."""
+    if not spans:
+        return 0
+    client = _get_client()
+    workspace_id = spans[0].workspace_id
+    span_ids = [s.span_id for s in spans]
+    try:
+        existing_rows = client.execute(
+            "SELECT DISTINCT span_id FROM spans "
+            "WHERE workspace_id = %(ws)s AND span_id IN %(ids)s",
+            {"ws": workspace_id, "ids": span_ids},
+        )
+        existing_ids = {row[0] for row in existing_rows}
+    except Exception:
+        logger.exception("Failed to check existing span_ids; proceeding with full insert")
+        existing_ids = set()
+    new_spans = [s for s in spans if s.span_id not in existing_ids]
+    if new_spans:
+        insert_spans(new_spans)
+    return len(new_spans)
+
+
 def fetch_trace_spans(trace_id: str, workspace_id: str) -> list[dict]:
     """Fetch all spans for a trace from ClickHouse. Returns raw dicts."""
     try:
