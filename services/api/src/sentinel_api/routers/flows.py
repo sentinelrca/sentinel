@@ -1,6 +1,7 @@
 """Flows router — return flow graph JSON for a trace."""
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -27,7 +28,9 @@ async def get_flow(
     spans = [_row_to_span(r) for r in raw_rows]
     graph = build_graph(spans)
 
-    total_ms = sum(s.duration_ms for s in spans if not s.parent_span_id)
+    total_ms = (
+        (max(s.end_time for s in spans) - min(s.start_time for s in spans)).total_seconds() * 1000
+    )
     llm_calls = sum(1 for s in spans if s.kind == SpanKind.LLM_CALL)
     total_input = sum(s.input_tokens or 0 for s in spans)
     total_output = sum(s.output_tokens or 0 for s in spans)
@@ -70,7 +73,6 @@ async def get_flow(
 
 
 def _row_to_span(row: dict) -> NormalizedSpan:
-    import json
     return NormalizedSpan(
         span_id=row["span_id"],
         trace_id=row["trace_id"],

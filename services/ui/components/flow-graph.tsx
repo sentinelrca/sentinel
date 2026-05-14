@@ -13,11 +13,11 @@ import "@xyflow/react/dist/style.css";
 import type { FlowNode, FlowEdge } from "@/lib/types";
 
 const KIND_COLORS: Record<string, { bg: string; border: string; text: string }> = {
-  LLM_CALL: { bg: "#ede9fe", border: "#7c3aed", text: "#4c1d95" },
-  TOOL_INVOKE: { bg: "#dbeafe", border: "#2563eb", text: "#1e3a8a" },
-  CHAIN: { bg: "#f1f5f9", border: "#64748b", text: "#1e293b" },
-  RETRIEVAL: { bg: "#dcfce7", border: "#16a34a", text: "#14532d" },
-  AGENT_INVOKE: { bg: "#fef9c3", border: "#ca8a04", text: "#713f12" },
+  llm_call:     { bg: "#ede9fe", border: "#7c3aed", text: "#4c1d95" },
+  tool_invoke:  { bg: "#dbeafe", border: "#2563eb", text: "#1e3a8a" },
+  chain:        { bg: "#f1f5f9", border: "#64748b", text: "#1e293b" },
+  retrieval:    { bg: "#dcfce7", border: "#16a34a", text: "#14532d" },
+  agent_invoke: { bg: "#fef9c3", border: "#ca8a04", text: "#713f12" },
 };
 
 const AFFECTED_STYLE = { border: "2px solid #dc2626", boxShadow: "0 0 0 2px #fca5a5" };
@@ -38,8 +38,6 @@ function buildLayout(nodes: FlowNode[]): Map<string, { x: number; y: number }> {
   }
 
   let yCounter = 0;
-  const NODE_W = 180;
-  const NODE_H = 70;
   const X_GAP = 200;
   const Y_GAP = 90;
 
@@ -71,7 +69,7 @@ export default function FlowGraphCanvas({ nodes, edges, affectedSpanIds }: Props
   const rfNodes: Node[] = useMemo(
     () =>
       nodes.map((n) => {
-        const colors = KIND_COLORS[n.kind] ?? KIND_COLORS.CHAIN;
+        const colors = KIND_COLORS[n.kind] ?? KIND_COLORS.chain;
         const isAffected = affectedSet.has(n.id);
         return {
           id: n.id,

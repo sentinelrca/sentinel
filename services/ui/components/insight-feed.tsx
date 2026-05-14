@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import InsightCard from "./insight-card";
 import type { Insight } from "@/lib/types";
 
@@ -23,7 +23,6 @@ export default function InsightFeed({
   limit,
   currentSeverity,
 }: Props) {
-  const router = useRouter();
   const searchParams = useSearchParams();
 
   function buildUrl(updates: Record<string, string | undefined>) {
