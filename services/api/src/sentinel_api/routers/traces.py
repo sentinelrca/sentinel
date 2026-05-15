@@ -1,6 +1,7 @@
 """Traces router — trace-centric insight feed."""
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query
@@ -34,7 +35,7 @@ async def list_traces(
             select(
                 InsightRow.trace_id,
                 func.count().label("insight_count"),
-                func.array_agg(InsightRow.rule_id.distinct()).label("rule_ids"),
+                func.array_agg(InsightRow.rule_id).label("rule_ids"),
                 func.max(InsightRow.created_at).label("latest_insight_at"),
                 func.array_agg(InsightRow.severity).label("severities"),
             )
@@ -47,11 +48,12 @@ async def list_traces(
         groups = rows_result.all()
 
     trace_ids = [g.trace_id for g in groups]
-    stats = fetch_trace_stats_batch(trace_ids, workspace.id)
+    stats = await asyncio.to_thread(fetch_trace_stats_batch, trace_ids, workspace.id)
 
     items = []
     for g in groups:
-        worst = max(g.severities, key=lambda s: _SEVERITY_ORDER.get(s, 0))
+        severities = g.severities or []
+        worst = max(severities, key=lambda s: _SEVERITY_ORDER.get(s, 0)) if severities else "info"
         span_stats = stats.get(g.trace_id, {"span_count": 0, "llm_calls": 0, "total_ms": 0})
         items.append({
             "trace_id": g.trace_id,

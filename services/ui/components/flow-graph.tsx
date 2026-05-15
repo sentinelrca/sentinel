@@ -125,9 +125,9 @@ function NodeLabel({ node }: { node: FlowNode }) {
         {node.duration_ms > 0 && <span>{node.duration_ms}ms</span>}
         {node.status === "error" && <span className="text-red-600">error</span>}
       </div>
-      {(node.input_tokens > 0 || node.output_tokens > 0) && (
+      {((node.input_tokens ?? 0) > 0 || (node.output_tokens ?? 0) > 0) && (
         <div className="mt-0.5 text-[10px] opacity-60">
-          {node.input_tokens}↑ {node.output_tokens}↓
+          {node.input_tokens ?? 0}↑ {node.output_tokens ?? 0}↓
         </div>
       )}
     </div>

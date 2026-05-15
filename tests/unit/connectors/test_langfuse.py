@@ -7,7 +7,7 @@ import pytest
 import respx
 from httpx import Response
 
-from sentinel_connectors.langfuse import LangfuseConnector
+from sentinel_connectors.langfuse import LangfuseConnector, _parse_ts
 from sentinel_pipeline.models.span import SpanKind, SpanStatus
 
 connector = LangfuseConnector()
@@ -201,3 +201,39 @@ def test_timestamps_parsed_correctly():
     ]
     assert spans[0].start_time == spans[1].start_time
     assert spans[0].start_time.tzinfo is not None
+
+
+# ---------------------------------------------------------------------------
+# Regression tests for review fixes
+# ---------------------------------------------------------------------------
+
+def test_parse_ts_returns_none_for_missing_value():
+    assert _parse_ts(None) is None
+    assert _parse_ts("") is None
+
+
+def test_parse_ts_returns_none_for_invalid_value():
+    assert _parse_ts("not-a-date") is None
+
+
+def test_missing_end_time_falls_back_to_start_time():
+    """When endTime is absent, end_time must equal start_time — not datetime.now()."""
+    obs = {**_OBS_LLM, "endTime": None}
+    span = connector._map_observation(obs, _WORKSPACE)
+    assert span.end_time == span.start_time
+
+
+def test_store_content_false_does_not_flatten_input_keys():
+    """With store_content=False (default), input dict must NOT appear in attributes."""
+    obs = {**_OBS_LLM, "input": {"prompt": "hello", "langfuse.type": "INJECTED"}}
+    span = connector._map_observation(obs, _WORKSPACE, store_content=False)
+    assert "prompt" not in span.attributes
+    assert span.attributes["langfuse.type"] == "generation"  # not overwritten
+
+
+def test_store_content_true_namespaces_input():
+    """With store_content=True, input is stored under 'langfuse.input', not flattened."""
+    obs = {**_OBS_LLM, "input": {"prompt": "hello", "langfuse.type": "INJECTED"}}
+    span = connector._map_observation(obs, _WORKSPACE, store_content=True)
+    assert span.attributes["langfuse.input"] == {"prompt": "hello", "langfuse.type": "INJECTED"}
+    assert span.attributes["langfuse.type"] == "generation"  # not overwritten by flattening

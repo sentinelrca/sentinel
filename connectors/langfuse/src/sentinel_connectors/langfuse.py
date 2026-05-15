@@ -122,7 +122,7 @@ class LangfuseConnector(Connector):
             status = SpanStatus.ERROR
 
         # Langfuse timestamps are ISO 8601 strings
-        start_time = _parse_ts(obs.get("startTime"))
+        start_time = _parse_ts(obs.get("startTime")) or datetime.now(timezone.utc)
         end_time   = _parse_ts(obs.get("endTime")) or start_time
 
         usage         = obs.get("usage") or {}
@@ -138,7 +138,7 @@ class LangfuseConnector(Connector):
             "langfuse.project": obs.get("projectId", ""),
         }
         if store_content and isinstance(obs.get("input"), dict):
-            attributes.update(obs["input"])
+            attributes["langfuse.input"] = obs["input"]
 
         return NormalizedSpan(
             span_id=obs["id"],
@@ -160,12 +160,12 @@ class LangfuseConnector(Connector):
         )
 
 
-def _parse_ts(value: str | None) -> datetime:
+def _parse_ts(value: str | None) -> datetime | None:
     if not value:
-        return datetime.now(timezone.utc)
+        return None
     # Handle both Z and +00:00 suffixes
     value = value.replace("Z", "+00:00")
     try:
         return datetime.fromisoformat(value)
     except ValueError:
-        return datetime.now(timezone.utc)
+        return None
