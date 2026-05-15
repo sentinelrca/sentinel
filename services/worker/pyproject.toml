@@ -21,6 +21,11 @@ dev = [
     "ruff>=0.4",
 ]
 
+[tool.uv.sources]
+sentinel-pipeline            = { path = "../../services/pipeline",   editable = true }
+sentinel-connectors-base     = { path = "../../connectors/_base",    editable = true }
+sentinel-connectors-langfuse = { path = "../../connectors/langfuse", editable = true }
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 
