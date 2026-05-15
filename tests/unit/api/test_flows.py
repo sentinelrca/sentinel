@@ -187,3 +187,23 @@ async def test_get_flow_node_fields(two_span_rows):
     assert llm["input_tokens"] == 200
     assert llm["output_tokens"] == 80
     assert llm["parent_id"] == "root"
+
+
+@pytest.mark.asyncio
+async def test_get_flow_node_includes_retry_count_and_attributes(two_span_rows):
+    from sentinel_api.middleware.auth import get_workspace as _gw
+
+    two_span_rows[1]["retry_count"] = 3
+    two_span_rows[1]["attributes_json"] = '{"langsmith.run_type": "llm"}'
+    app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
+    with patch("sentinel_api.routers.flows.fetch_trace_spans", return_value=two_span_rows):
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            resp = await client.get("/v1/flows/trace-001")
+
+    app.dependency_overrides.clear()
+    nodes = {n["id"]: n for n in resp.json()["nodes"]}
+    llm = nodes["llm"]
+    assert llm["retry_count"] == 3
+    assert llm["attributes"] == {"langsmith.run_type": "llm"}

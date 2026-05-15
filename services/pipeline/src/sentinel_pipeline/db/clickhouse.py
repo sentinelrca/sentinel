@@ -112,3 +112,28 @@ def fetch_trace_spans(trace_id: str, workspace_id: str) -> list[dict]:
     except Exception:
         logger.exception("Failed to fetch spans for trace %s", trace_id)
         return []
+
+
+def fetch_trace_stats_batch(trace_ids: list[str], workspace_id: str) -> dict[str, dict]:
+    """Return span stats keyed by trace_id: span_count, llm_calls, total_ms."""
+    if not trace_ids:
+        return {}
+    try:
+        client = _get_client()
+        rows = client.execute(
+            "SELECT trace_id, "
+            "  count() AS span_count, "
+            "  countIf(kind = 'llm_call') AS llm_calls, "
+            "  dateDiff('millisecond', min(start_time), max(end_time)) AS total_ms "
+            "FROM spans "
+            "WHERE workspace_id = %(ws)s AND trace_id IN %(ids)s "
+            "GROUP BY trace_id",
+            {"ws": workspace_id, "ids": trace_ids},
+        )
+        return {
+            row[0]: {"span_count": row[1], "llm_calls": row[2], "total_ms": row[3]}
+            for row in rows
+        }
+    except Exception:
+        logger.exception("Failed to fetch trace stats batch")
+        return {}

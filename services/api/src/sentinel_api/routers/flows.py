@@ -48,8 +48,10 @@ async def get_flow(
                 "agent_name": s.agent_name,
                 "input_tokens": s.input_tokens,
                 "output_tokens": s.output_tokens,
+                "retry_count": s.retry_count,
                 "parent_id": s.parent_span_id,
                 "error_message": s.error_message,
+                "attributes": s.attributes,
             }
             for s in graph.nodes.values()
         ],

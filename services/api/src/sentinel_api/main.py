@@ -10,6 +10,7 @@ from .routers.health import router as health_router
 from .routers.insights import router as insights_router
 from .routers.flows import router as flows_router
 from .routers.sources import router as sources_router
+from .routers.traces import router as traces_router
 
 app = FastAPI(title="SentinelAI API", version="0.1.0")
 
@@ -27,3 +28,4 @@ app.include_router(health_router)
 app.include_router(insights_router, prefix="/v1")
 app.include_router(flows_router,    prefix="/v1")
 app.include_router(sources_router,  prefix="/v1")
+app.include_router(traces_router,   prefix="/v1")
