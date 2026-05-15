@@ -1,6 +1,7 @@
 """Flows router — return flow graph JSON for a trace."""
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import Any
 
@@ -21,7 +22,7 @@ async def get_flow(
     trace_id: str,
     workspace: WorkspaceRow = Depends(get_workspace),
 ) -> dict[str, Any]:
-    raw_rows = fetch_trace_spans(trace_id, workspace.id)
+    raw_rows = await asyncio.to_thread(fetch_trace_spans, trace_id, workspace.id)
     if not raw_rows:
         raise HTTPException(status_code=404, detail="Trace not found")
 

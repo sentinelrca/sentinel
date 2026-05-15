@@ -2,10 +2,10 @@ import { clsx } from "clsx";
 import type { Severity } from "@/lib/types";
 
 const COLORS: Record<Severity, string> = {
-  CRITICAL: "bg-red-100 text-red-700 border-red-200",
-  HIGH: "bg-orange-100 text-orange-700 border-orange-200",
-  WARNING: "bg-yellow-100 text-yellow-700 border-yellow-200",
-  INFO: "bg-blue-100 text-blue-700 border-blue-200",
+  critical: "bg-red-100 text-red-700 border-red-200",
+  high:     "bg-orange-100 text-orange-700 border-orange-200",
+  warning:  "bg-yellow-100 text-yellow-700 border-yellow-200",
+  info:     "bg-blue-100 text-blue-700 border-blue-200",
 };
 
 interface Props {

@@ -68,7 +68,6 @@ class LangSmithConnector(Connector):
             params: dict = {
                 "limit": _PAGE_SIZE,
                 "start_time": since_iso,
-                "error": False,
             }
             if project_name:
                 params["project_name"] = project_name
@@ -116,9 +115,9 @@ class LangSmithConnector(Connector):
         kind = _KIND_MAP.get(run_type, SpanKind.GENERIC)
 
         status = SpanStatus.ERROR if run.get("error") else SpanStatus.OK
-        error_message = str(run.get("error") or "")
+        error_message = str(run["error"]) if run.get("error") else None
 
-        start_time = _parse_ts(run.get("start_time"))
+        start_time = _parse_ts(run.get("start_time")) or datetime.now(timezone.utc)
         end_time = _parse_ts(run.get("end_time")) or start_time
 
         # Token usage lives under extra.tokens or inputs/outputs metadata
@@ -178,11 +177,11 @@ class LangSmithConnector(Connector):
         )
 
 
-def _parse_ts(value: str | None) -> datetime:
+def _parse_ts(value: str | None) -> datetime | None:
     if not value:
-        return datetime.now(timezone.utc)
+        return None
     value = value.replace("Z", "+00:00")
     try:
         return datetime.fromisoformat(value)
     except ValueError:
-        return datetime.now(timezone.utc)
+        return None

@@ -1,4 +1,4 @@
-export type Severity = "CRITICAL" | "HIGH" | "WARNING" | "INFO";
+export type Severity = "critical" | "high" | "warning" | "info";
 
 export interface Insight {
   id: string;
@@ -29,10 +29,12 @@ export interface FlowNode {
   duration_ms: number;
   model: string | null;
   agent_name: string | null;
-  input_tokens: number;
-  output_tokens: number;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  retry_count: number;
   parent_id: string | null;
   error_message: string | null;
+  attributes: Record<string, unknown>;
 }
 
 export interface FlowEdge {
@@ -55,6 +57,30 @@ export interface FlowGraph {
   edges: FlowEdge[];
   has_cycle: boolean;
   stats: FlowStats;
+}
+
+export interface TraceSummary {
+  trace_id: string;
+  worst_severity: Severity;
+  insight_count: number;
+  rule_ids: string[];
+  latest_insight_at: string | null;
+  span_count: number;
+  llm_calls: number;
+  total_ms: number;
+}
+
+export interface TraceListResponse {
+  items: TraceSummary[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface TraceInsightsResponse {
+  trace_id: string;
+  items: Insight[];
+  total: number;
 }
 
 export interface Source {

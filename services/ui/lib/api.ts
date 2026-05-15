@@ -4,6 +4,8 @@ import type {
   InsightListResponse,
   Source,
   SourceListResponse,
+  TraceInsightsResponse,
+  TraceListResponse,
 } from "./types";
 
 const BASE_URL = process.env.SENTINEL_API_URL ?? "http://localhost:8000";
@@ -55,6 +57,23 @@ export async function getInsight(id: string): Promise<Insight> {
 
 export async function getFlow(traceId: string): Promise<FlowGraph> {
   return apiFetch<FlowGraph>(`/v1/flows/${traceId}`);
+}
+
+export interface TraceFilters {
+  limit?: number;
+  offset?: number;
+}
+
+export async function getTraces(filters: TraceFilters = {}): Promise<TraceListResponse> {
+  const params = new URLSearchParams();
+  if (filters.limit !== undefined) params.set("limit", String(filters.limit));
+  if (filters.offset !== undefined) params.set("offset", String(filters.offset));
+  const qs = params.toString();
+  return apiFetch<TraceListResponse>(`/v1/traces${qs ? `?${qs}` : ""}`);
+}
+
+export async function getTraceInsights(traceId: string): Promise<TraceInsightsResponse> {
+  return apiFetch<TraceInsightsResponse>(`/v1/traces/${traceId}/insights`);
 }
 
 export async function getSources(): Promise<SourceListResponse> {

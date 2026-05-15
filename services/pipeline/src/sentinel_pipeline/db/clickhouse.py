@@ -128,7 +128,7 @@ def fetch_trace_stats_batch(trace_ids: list[str], workspace_id: str) -> dict[str
             "FROM spans "
             "WHERE workspace_id = %(ws)s AND trace_id IN %(ids)s "
             "GROUP BY trace_id",
-            {"ws": workspace_id, "ids": trace_ids},
+            {"ws": workspace_id, "ids": tuple(trace_ids)},
         )
         return {
             row[0]: {"span_count": row[1], "llm_calls": row[2], "total_ms": row[3]}
