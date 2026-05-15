@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useCallback } from "react";
 import {
   ReactFlow,
   Background,
@@ -8,9 +8,10 @@ import {
   MiniMap,
   type Node,
   type Edge,
+  type NodeMouseHandler,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import type { FlowNode, FlowEdge } from "@/lib/types";
+import type { FlowNode, FlowEdge, Insight } from "@/lib/types";
 
 const KIND_COLORS: Record<string, { bg: string; border: string; text: string }> = {
   llm_call:     { bg: "#ede9fe", border: "#7c3aed", text: "#4c1d95" },
@@ -19,8 +20,6 @@ const KIND_COLORS: Record<string, { bg: string; border: string; text: string }> 
   retrieval:    { bg: "#dcfce7", border: "#16a34a", text: "#14532d" },
   agent_invoke: { bg: "#fef9c3", border: "#ca8a04", text: "#713f12" },
 };
-
-const AFFECTED_STYLE = { border: "2px solid #dc2626", boxShadow: "0 0 0 2px #fca5a5" };
 
 function buildLayout(nodes: FlowNode[]): Map<string, { x: number; y: number }> {
   const positions = new Map<string, { x: number; y: number }>();
@@ -38,21 +37,12 @@ function buildLayout(nodes: FlowNode[]): Map<string, { x: number; y: number }> {
   }
 
   let yCounter = 0;
-  const X_GAP = 200;
-  const Y_GAP = 90;
-
   function place(id: string, depth: number) {
-    const x = depth * X_GAP;
-    const y = yCounter * Y_GAP;
-    positions.set(id, { x, y });
+    positions.set(id, { x: depth * 200, y: yCounter * 90 });
     yCounter++;
-    for (const child of children.get(id) ?? []) {
-      place(child, depth + 1);
-    }
+    for (const child of children.get(id) ?? []) place(child, depth + 1);
   }
-
   for (const root of roots) place(root, 0);
-
   return positions;
 }
 
@@ -60,34 +50,73 @@ interface Props {
   nodes: FlowNode[];
   edges: FlowEdge[];
   affectedSpanIds: string[];
+  allInsights?: Insight[];
+  selectedSpanId?: string | null;
+  onNodeClick?: (span: FlowNode) => void;
 }
 
-export default function FlowGraphCanvas({ nodes, edges, affectedSpanIds }: Props) {
+export default function FlowGraphCanvas({
+  nodes,
+  edges,
+  affectedSpanIds,
+  allInsights = [],
+  selectedSpanId,
+  onNodeClick,
+}: Props) {
   const affectedSet = useMemo(() => new Set(affectedSpanIds), [affectedSpanIds]);
   const positions = useMemo(() => buildLayout(nodes), [nodes]);
+
+  // Worst severity per span across all insights that flag it (for dot color)
+  const spanSeverity = useMemo(() => {
+    const order: Record<string, number> = { critical: 4, high: 3, warning: 2, info: 1 };
+    const map = new Map<string, string>();
+    for (const ins of allInsights) {
+      for (const sid of ins.affected_span_ids) {
+        const cur = map.get(sid);
+        if (!cur || (order[ins.severity] ?? 0) > (order[cur] ?? 0)) {
+          map.set(sid, ins.severity);
+        }
+      }
+    }
+    return map;
+  }, [allInsights]);
 
   const rfNodes: Node[] = useMemo(
     () =>
       nodes.map((n) => {
         const colors = KIND_COLORS[n.kind] ?? KIND_COLORS.chain;
         const isAffected = affectedSet.has(n.id);
+        const isSelected = selectedSpanId === n.id;
+        const dotSeverity = spanSeverity.get(n.id);
+
+        let border = `1px solid ${colors.border}`;
+        let boxShadow: string | undefined;
+        if (isSelected) {
+          border = "2px solid #2563eb";
+          boxShadow = "0 0 0 2px #bfdbfe";
+        } else if (isAffected) {
+          border = "2px solid #dc2626";
+          boxShadow = "0 0 0 2px #fca5a5";
+        }
+
         return {
           id: n.id,
           position: positions.get(n.id) ?? { x: 0, y: 0 },
-          data: { label: <NodeLabel node={n} /> },
+          data: { label: <NodeLabel node={n} dotSeverity={dotSeverity} /> },
           style: {
             background: colors.bg,
-            border: isAffected ? AFFECTED_STYLE.border : `1px solid ${colors.border}`,
-            boxShadow: isAffected ? AFFECTED_STYLE.boxShadow : undefined,
+            border,
+            boxShadow,
             color: colors.text,
             borderRadius: 8,
             padding: "6px 10px",
             fontSize: 11,
             width: 180,
+            cursor: onNodeClick ? "pointer" : "default",
           },
         };
       }),
-    [nodes, positions, affectedSet]
+    [nodes, positions, affectedSet, selectedSpanId, spanSeverity, onNodeClick]
   );
 
   const rfEdges: Edge[] = useMemo(
@@ -103,9 +132,22 @@ export default function FlowGraphCanvas({ nodes, edges, affectedSpanIds }: Props
     [edges]
   );
 
+  const handleNodeClick: NodeMouseHandler = useCallback(
+    (_event, rfNode) => {
+      const span = nodes.find((n) => n.id === rfNode.id);
+      if (span) onNodeClick?.(span);
+    },
+    [nodes, onNodeClick]
+  );
+
   return (
     <div style={{ height: Math.max(400, nodes.length * 90 + 80) }}>
-      <ReactFlow nodes={rfNodes} edges={rfEdges} fitView>
+      <ReactFlow
+        nodes={rfNodes}
+        edges={rfEdges}
+        fitView
+        onNodeClick={onNodeClick ? handleNodeClick : undefined}
+      >
         <Background />
         <Controls />
         <MiniMap />
@@ -114,9 +156,22 @@ export default function FlowGraphCanvas({ nodes, edges, affectedSpanIds }: Props
   );
 }
 
-function NodeLabel({ node }: { node: FlowNode }) {
+function NodeLabel({ node, dotSeverity }: { node: FlowNode; dotSeverity?: string }) {
+  const dotColor =
+    dotSeverity === "critical" || dotSeverity === "high"
+      ? "bg-red-500"
+      : dotSeverity
+      ? "bg-amber-400"
+      : null;
+
   return (
-    <div className="leading-tight">
+    <div className="relative leading-tight">
+      {dotColor && (
+        <span
+          className={`absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full ${dotColor} ring-1 ring-white`}
+          title={dotSeverity}
+        />
+      )}
       <div className="truncate font-medium" style={{ maxWidth: 156 }}>
         {node.name || node.id.slice(0, 8)}
       </div>
