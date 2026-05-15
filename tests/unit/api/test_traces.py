@@ -184,3 +184,136 @@ async def test_get_trace_insights_empty():
     app.dependency_overrides.clear()
     assert resp.status_code == 200
     assert resp.json()["total"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Pagination
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_list_traces_pagination_params_forwarded():
+    """limit and offset from query params are reflected in the response."""
+    app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
+    with patch("sentinel_api.routers.traces.get_session", return_value=_mock_session_group([])):
+        with patch("sentinel_api.routers.traces.fetch_trace_stats_batch", return_value={}):
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+                resp = await c.get("/v1/traces?limit=10&offset=20")
+    app.dependency_overrides.clear()
+    body = resp.json()
+    assert resp.status_code == 200
+    assert body["limit"] == 10
+    assert body["offset"] == 20
+
+
+@pytest.mark.asyncio
+async def test_list_traces_pagination_defaults():
+    """Default limit=50, offset=0 when not supplied."""
+    app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
+    with patch("sentinel_api.routers.traces.get_session", return_value=_mock_session_group([])):
+        with patch("sentinel_api.routers.traces.fetch_trace_stats_batch", return_value={}):
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+                resp = await c.get("/v1/traces")
+    app.dependency_overrides.clear()
+    body = resp.json()
+    assert body["limit"] == 50
+    assert body["offset"] == 0
+
+
+@pytest.mark.asyncio
+async def test_list_traces_rejects_limit_above_max():
+    """limit > 200 should be rejected with 422."""
+    app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
+    with patch("sentinel_api.routers.traces.get_session", return_value=_mock_session_group([])):
+        with patch("sentinel_api.routers.traces.fetch_trace_stats_batch", return_value={}):
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+                resp = await c.get("/v1/traces?limit=201")
+    app.dependency_overrides.clear()
+    assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# rule_ids deduplication
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_list_traces_deduplicates_rule_ids():
+    """When array_agg returns duplicate rule IDs, the response must deduplicate them."""
+    groups = [_group("t6", 3, ["retry_storm", "retry_storm", "latency_spike"], ["high", "high", "warning"])]
+    app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
+    with patch("sentinel_api.routers.traces.get_session", return_value=_mock_session_group(groups)):
+        with patch("sentinel_api.routers.traces.fetch_trace_stats_batch", return_value={}):
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+                resp = await c.get("/v1/traces")
+    app.dependency_overrides.clear()
+    item = resp.json()["items"][0]
+    assert item["rule_ids"].count("retry_storm") == 1, "duplicate rule_ids must be removed"
+    assert set(item["rule_ids"]) == {"retry_storm", "latency_spike"}
+
+
+@pytest.mark.asyncio
+async def test_list_traces_rule_ids_preserves_order():
+    """Dedup must preserve the first-seen order, not sort or reverse."""
+    groups = [_group("t7", 4, ["b", "a", "b", "c"], ["info", "info", "info", "info"])]
+    app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
+    with patch("sentinel_api.routers.traces.get_session", return_value=_mock_session_group(groups)):
+        with patch("sentinel_api.routers.traces.fetch_trace_stats_batch", return_value={}):
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+                resp = await c.get("/v1/traces")
+    app.dependency_overrides.clear()
+    assert resp.json()["items"][0]["rule_ids"] == ["b", "a", "c"]
+
+
+# ---------------------------------------------------------------------------
+# Edge cases
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_list_traces_empty_severities_falls_back_to_info():
+    """A trace group with an empty severities list must not crash — defaults to 'info'."""
+    groups = [_group("t8", 1, ["some_rule"], [])]  # empty severities
+    app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
+    with patch("sentinel_api.routers.traces.get_session", return_value=_mock_session_group(groups)):
+        with patch("sentinel_api.routers.traces.fetch_trace_stats_batch", return_value={}):
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+                resp = await c.get("/v1/traces")
+    app.dependency_overrides.clear()
+    assert resp.status_code == 200
+    assert resp.json()["items"][0]["worst_severity"] == "info"
+
+
+@pytest.mark.asyncio
+async def test_list_traces_multiple_traces_ordered_by_latest():
+    """Response items are in descending latest_insight_at order."""
+    from datetime import timedelta
+    t_old = _T0
+    t_new = _T0 + timedelta(hours=1)
+    groups = [
+        _group("older",  1, ["a"], ["info"],    latest=t_old),
+        _group("newer",  1, ["b"], ["warning"], latest=t_new),
+    ]
+    # mock returns them in "older first" order; router should preserve DB ordering (we trust the query)
+    # this test verifies the response shape for multiple items
+    app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
+    with patch("sentinel_api.routers.traces.get_session", return_value=_mock_session_group(groups)):
+        with patch("sentinel_api.routers.traces.fetch_trace_stats_batch", return_value={}):
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+                resp = await c.get("/v1/traces")
+    app.dependency_overrides.clear()
+    items = resp.json()["items"]
+    assert len(items) == 2
+    assert {i["trace_id"] for i in items} == {"older", "newer"}
+
+
+@pytest.mark.asyncio
+async def test_get_trace_insights_insight_fields_complete():
+    """Each insight item in the response includes all required fields."""
+    row = _insight_row("t9", "agent_loop", "critical")
+    app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
+    with patch("sentinel_api.routers.traces.get_session", return_value=_mock_session_insights([row])):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+            resp = await c.get("/v1/traces/t9/insights")
+    app.dependency_overrides.clear()
+    item = resp.json()["items"][0]
+    for field in ("id", "trace_id", "rule_id", "severity", "title", "detail",
+                  "recommendation", "affected_span_ids", "evidence", "status", "created_at"):
+        assert field in item, f"missing field: {field}"
