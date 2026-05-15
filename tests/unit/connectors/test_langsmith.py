@@ -260,3 +260,29 @@ def test_error_message_is_string_when_error_present():
     span = connector._map_run(run, _WORKSPACE)
     assert span.error_message is not None
     assert "ValueError" in span.error_message
+
+
+def test_store_content_false_omits_inputs_and_outputs():
+    """With store_content=False (default), inputs/outputs must NOT appear in attributes."""
+    run = {
+        **_RUN_LLM,
+        "inputs":  {"prompt": "hello", "system": "you are a bot"},
+        "outputs": {"text": "world"},
+    }
+    span = connector._map_run(run, _WORKSPACE, store_content=False)
+    assert "langsmith.inputs" not in span.attributes
+    assert "langsmith.outputs" not in span.attributes
+
+
+def test_store_content_true_includes_inputs_and_outputs():
+    """With store_content=True, inputs/outputs stored under namespaced keys."""
+    run = {
+        **_RUN_LLM,
+        "inputs":  {"prompt": "hello"},
+        "outputs": {"text": "world"},
+    }
+    span = connector._map_run(run, _WORKSPACE, store_content=True)
+    assert span.attributes["langsmith.inputs"] == {"prompt": "hello"}
+    assert span.attributes["langsmith.outputs"] == {"text": "world"}
+    # structural attributes must still be present
+    assert span.attributes["langsmith.run_type"] == "llm"
