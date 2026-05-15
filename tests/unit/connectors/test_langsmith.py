@@ -7,7 +7,7 @@ import pytest
 import respx
 from httpx import Response
 
-from sentinel_connectors.langsmith import LangSmithConnector
+from sentinel_connectors.langsmith import LangSmithConnector, _parse_ts
 from sentinel_pipeline.models.span import SpanKind, SpanStatus
 
 connector = LangSmithConnector()
@@ -214,3 +214,49 @@ def test_timestamps_parsed_correctly():
     s2 = connector._map_run(run_utc, _WORKSPACE)
     assert s1.start_time == s2.start_time
     assert s1.start_time.tzinfo is not None
+
+
+# ---------------------------------------------------------------------------
+# Regression tests for review fixes
+# ---------------------------------------------------------------------------
+
+def test_parse_ts_returns_none_for_missing_value():
+    assert _parse_ts(None) is None
+    assert _parse_ts("") is None
+
+
+def test_parse_ts_returns_none_for_invalid_value():
+    assert _parse_ts("not-a-date") is None
+
+
+def test_missing_end_time_falls_back_to_start_time():
+    """When end_time is absent, end_time must equal start_time — not datetime.now()."""
+    run = {**_RUN_LLM, "end_time": None}
+    span = connector._map_run(run, _WORKSPACE)
+    assert span.end_time == span.start_time
+
+
+@respx.mock
+def test_error_runs_are_included_in_pull():
+    """Error runs must NOT be filtered out — retry_storm and similar rules need them."""
+    respx.get("https://api.smith.langchain.com/api/v1/runs").mock(
+        return_value=Response(200, json=[_RUN_ERROR])
+    )
+    batches = list(connector.pull(_CONFIG, _SINCE, _WORKSPACE))
+    assert len(batches) == 1, "Error run must appear in the batch"
+    assert batches[0][0].span_id == "run-004"
+
+
+def test_error_message_is_none_when_no_error():
+    """error_message must be None (not empty string) when the run has no error."""
+    run = {**_RUN_LLM, "error": None}
+    span = connector._map_run(run, _WORKSPACE)
+    assert span.error_message is None
+
+
+def test_error_message_is_string_when_error_present():
+    """error_message must be a non-empty string when the run has an error."""
+    run = {**_RUN_ERROR}
+    span = connector._map_run(run, _WORKSPACE)
+    assert span.error_message is not None
+    assert "ValueError" in span.error_message
