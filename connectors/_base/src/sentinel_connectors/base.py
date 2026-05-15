@@ -16,6 +16,14 @@ class Connector(ABC):
 
     The OTel push path (sources that emit OTLP directly) does NOT use this
     interface — it arrives via the ingestor's OTLP endpoint instead.
+
+    Standard config keys (all connectors must honour these):
+      store_content (bool, default False):
+        When False (default), connectors must NOT store prompt/response content
+        (inputs, outputs, messages) in span attributes. Only structural fields
+        — token counts, latency, span kind, status — are retained.
+        Set to True only when the workspace operator has explicitly opted in
+        and accepts the data-retention implications.
     """
 
     source_kind: str  # e.g. "langfuse", "langsmith"
@@ -43,6 +51,7 @@ class Connector(ABC):
 
         Args:
             config:       Source-specific credentials/config dict.
+                          Must respect store_content (see class docstring).
             since:        Fetch only observations newer than this timestamp.
             workspace_id: Injected into every NormalizedSpan.workspace_id.
         """

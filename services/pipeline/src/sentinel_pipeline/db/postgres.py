@@ -50,6 +50,15 @@ class WorkspaceRow(Base):
 class SourceRow(Base):
     __tablename__ = "sources"
 
+    # config_json standard keys (all connectors must honour these):
+    #   kind (str): connector type, e.g. "langfuse" or "langsmith"
+    #   store_content (bool, default False): when False, connectors omit prompt/response
+    #     content (inputs, outputs, messages) from span attributes; only structural fields
+    #     (token counts, latency, span kind, status) are retained.
+    #     Set True only when the workspace operator has explicitly opted in.
+    #   [future M5] mask_pii (bool, default False): when True and store_content is True,
+    #     apply PII redaction before storing content in span attributes.
+
     id             = Column(String, primary_key=True)
     workspace_id   = Column(String, nullable=False)
     kind           = Column(String, nullable=False)   # "langfuse" | "langsmith" | ...
