@@ -9,7 +9,7 @@ import { clsx } from "clsx";
 import type { FlowGraph, FlowNode, Insight } from "@/lib/types";
 
 interface Props {
-  flow: FlowGraph;
+  flow: FlowGraph | null;
   insights: Insight[];
   traceId: string;
 }
@@ -64,14 +64,16 @@ export default function TraceDetailClient({ flow, insights, traceId }: Props) {
         </div>
 
         {/* Stats */}
-        <div className="border-t border-slate-200 px-4 py-3 text-xs text-slate-500 space-y-0.5">
-          {flow.stats.span_count > 0 && <p>{flow.stats.span_count} spans</p>}
-          {flow.stats.llm_calls > 0 && <p>{flow.stats.llm_calls} LLM calls</p>}
-          {flow.stats.total_ms > 0 && <p>{(flow.stats.total_ms / 1000).toFixed(1)}s total</p>}
-          {flow.has_cycle && (
-            <p className="text-orange-600 font-medium">⚠ cycle detected</p>
-          )}
-        </div>
+        {flow && (
+          <div className="border-t border-slate-200 px-4 py-3 text-xs text-slate-500 space-y-0.5">
+            {flow.stats.span_count > 0 && <p>{flow.stats.span_count} spans</p>}
+            {flow.stats.llm_calls > 0 && <p>{flow.stats.llm_calls} LLM calls</p>}
+            {flow.stats.total_ms > 0 && <p>{(flow.stats.total_ms / 1000).toFixed(1)}s total</p>}
+            {flow.has_cycle && (
+              <p className="text-orange-600 font-medium">⚠ cycle detected</p>
+            )}
+          </div>
+        )}
       </aside>
 
       {/* Center — graph / timeline + drawer */}
@@ -96,7 +98,12 @@ export default function TraceDetailClient({ flow, insights, traceId }: Props) {
 
         {/* Content */}
         <div className="flex-1 overflow-auto p-4">
-          {activeTab === "graph" ? (
+          {!flow ? (
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">
+              Flow graph unavailable — span data was not found in ClickHouse.
+              This trace may have been ingested before the current sync window.
+            </div>
+          ) : activeTab === "graph" ? (
             flow.nodes.length === 0 ? (
               <p className="text-sm text-slate-500">No spans found for this trace.</p>
             ) : (
