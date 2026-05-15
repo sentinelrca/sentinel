@@ -58,8 +58,9 @@ class LangSmithConnector(Connector):
         Page through LangSmith runs newer than `since` using cursor-based pagination.
         Yields batches of NormalizedSpan objects.
         """
-        client = self._client(config)
-        project_name = config.get("project_name")
+        client        = self._client(config)
+        store_content = config.get("store_content", False)
+        project_name  = config.get("project_name")
         cursor: str | None = None
         since_iso = since.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
@@ -87,7 +88,7 @@ class LangSmithConnector(Connector):
                 break
 
             batch = [
-                self._map_run(run, workspace_id)
+                self._map_run(run, workspace_id, store_content)
                 for run in runs
                 if run.get("trace_id")
             ]
@@ -110,7 +111,7 @@ class LangSmithConnector(Connector):
             timeout=30.0,
         )
 
-    def _map_run(self, run: dict, workspace_id: str) -> NormalizedSpan:
+    def _map_run(self, run: dict, workspace_id: str, store_content: bool = False) -> NormalizedSpan:
         run_type = (run.get("run_type") or "chain").lower()
         kind = _KIND_MAP.get(run_type, SpanKind.GENERIC)
 
@@ -146,6 +147,17 @@ class LangSmithConnector(Connector):
             ""
         )
 
+        attributes: dict = {
+            "langsmith.run_type": run_type,
+            "langsmith.session_name": run.get("session_name", ""),
+            **(metadata or {}),
+        }
+        if store_content:
+            if isinstance(run.get("inputs"), dict):
+                attributes["langsmith.inputs"] = run["inputs"]
+            if isinstance(run.get("outputs"), dict):
+                attributes["langsmith.outputs"] = run["outputs"]
+
         return NormalizedSpan(
             span_id=run["id"],
             trace_id=run["trace_id"],
@@ -162,11 +174,7 @@ class LangSmithConnector(Connector):
             output_tokens=output_tokens,
             retry_count=int(metadata.get("retry_count", 0)),
             error_message=error_message,
-            attributes={
-                "langsmith.run_type": run_type,
-                "langsmith.session_name": run.get("session_name", ""),
-                **(metadata or {}),
-            },
+            attributes=attributes,
         )
 
 
