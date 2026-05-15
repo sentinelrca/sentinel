@@ -60,9 +60,10 @@ class LangfuseConnector(Connector):
         Page through Langfuse observations newer than `since` and yield
         batches of NormalizedSpan objects.
         """
-        client   = self._client(config)
-        page     = 1
-        since_iso = since.isoformat()
+        client        = self._client(config)
+        store_content = config.get("store_content", False)
+        page          = 1
+        since_iso     = since.isoformat()
 
         while True:
             try:
@@ -85,7 +86,7 @@ class LangfuseConnector(Connector):
                 break
 
             batch = [
-                self._map_observation(obs, workspace_id)
+                self._map_observation(obs, workspace_id, store_content)
                 for obs in observations
                 if obs.get("traceId")  # skip orphaned observations
             ]
@@ -112,7 +113,7 @@ class LangfuseConnector(Connector):
             timeout=30.0,
         )
 
-    def _map_observation(self, obs: dict, workspace_id: str) -> NormalizedSpan:
+    def _map_observation(self, obs: dict, workspace_id: str, store_content: bool = False) -> NormalizedSpan:
         obs_type = (obs.get("type") or "span").lower()
         kind     = _KIND_MAP.get(obs_type, SpanKind.GENERIC)
 
@@ -132,6 +133,13 @@ class LangfuseConnector(Connector):
         metadata   = obs.get("metadata") or {}
         agent_name = metadata.get("agent_name") or metadata.get("agentName")
 
+        attributes: dict = {
+            "langfuse.type":    obs_type,
+            "langfuse.project": obs.get("projectId", ""),
+        }
+        if store_content and isinstance(obs.get("input"), dict):
+            attributes.update(obs["input"])
+
         return NormalizedSpan(
             span_id=obs["id"],
             trace_id=obs["traceId"],
@@ -148,12 +156,7 @@ class LangfuseConnector(Connector):
             output_tokens=output_tokens,
             retry_count=int(metadata.get("retry_count", 0)),
             error_message=obs.get("statusMessage"),
-            attributes={
-                "langfuse.type":    obs_type,
-                "langfuse.project": obs.get("projectId", ""),
-                # input may be a list (messages) or dict; only spread if dict
-                **(obs.get("input") if isinstance(obs.get("input"), dict) else {}),
-            },
+            attributes=attributes,
         )
 
 
