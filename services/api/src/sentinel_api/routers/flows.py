@@ -44,6 +44,7 @@ async def get_flow(
                 "name": s.name,
                 "kind": s.kind.value,
                 "status": s.status.value,
+                "start_time": s.start_time.isoformat(),
                 "duration_ms": round(s.duration_ms, 1),
                 "model": s.model,
                 "agent_name": s.agent_name,

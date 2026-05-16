@@ -26,6 +26,7 @@ export interface FlowNode {
   name: string;
   kind: string;
   status: string;
+  start_time: string;
   duration_ms: number;
   model: string | null;
   agent_name: string | null;
