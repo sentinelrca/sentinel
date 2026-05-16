@@ -114,6 +114,20 @@ def fetch_trace_spans(trace_id: str, workspace_id: str) -> list[dict]:
         return []
 
 
+def count_distinct_traces(workspace_id: str) -> int:
+    """Count distinct trace_ids for a workspace."""
+    try:
+        client = _get_client()
+        rows = client.execute(
+            "SELECT count(DISTINCT trace_id) FROM spans WHERE workspace_id = %(ws)s",
+            {"ws": workspace_id},
+        )
+        return rows[0][0] if rows else 0
+    except Exception:
+        logger.exception("Failed to count distinct traces for workspace %s", workspace_id)
+        return 0
+
+
 def fetch_trace_stats_batch(trace_ids: list[str], workspace_id: str) -> dict[str, dict]:
     """Return span stats keyed by trace_id: span_count, llm_calls, total_ms."""
     if not trace_ids:

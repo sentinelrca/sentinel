@@ -1,6 +1,39 @@
 import { getTraces } from "@/lib/api";
 import TraceCard from "@/components/trace-card";
 import Link from "next/link";
+import type { TraceListResponse } from "@/lib/types";
+
+const SEVERITY_ORDER = ["critical", "high", "warning", "info"] as const;
+
+function buildHealthLine(data: TraceListResponse): string {
+  const analyzed = data.total_traces_analyzed;
+  const totalIssues = Object.values(data.issues_by_severity).reduce((s, n) => s + n, 0);
+
+  const analyzedPart = `${analyzed} trace${analyzed !== 1 ? "s" : ""} analyzed`;
+
+  let issuesPart: string;
+  if (totalIssues === 0) {
+    issuesPart = "no issues found";
+  } else {
+    const breakdown = SEVERITY_ORDER
+      .filter((s) => data.issues_by_severity[s])
+      .map((s) => `${data.issues_by_severity[s]} ${s}`)
+      .join(", ");
+    issuesPart = `${totalIssues} issue${totalIssues !== 1 ? "s" : ""} found — ${breakdown}`;
+  }
+
+  let syncPart = "";
+  if (data.last_synced_at) {
+    const diffMs = Date.now() - new Date(data.last_synced_at).getTime();
+    const diffMin = Math.round(diffMs / 60_000);
+    syncPart =
+      diffMin < 60
+        ? `last synced ${diffMin}m ago`
+        : `last synced ${Math.round(diffMin / 60)}h ago`;
+  }
+
+  return [analyzedPart, issuesPart, syncPart].filter(Boolean).join(" · ");
+}
 
 interface Props {
   searchParams: { page?: string };
@@ -27,7 +60,7 @@ export default async function TracesPage({ searchParams }: Props) {
       <div className="mb-6">
         <h1 className="text-2xl font-semibold text-slate-900">Traces</h1>
         <p className="mt-1 text-sm text-slate-500">
-          {data ? `${data.total} traces with detected issues` : "AI agent traces"}
+          {data ? buildHealthLine(data) : "AI agent traces"}
         </p>
       </div>
 
