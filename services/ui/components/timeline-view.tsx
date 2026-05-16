@@ -31,18 +31,27 @@ export default function TimelineView({
 }: Props) {
   const affectedSet = useMemo(() => new Set(affectedSpanIds), [affectedSpanIds]);
 
-  // Sort by duration_ms offset proxy: use node index order (server already orders by start_time)
-  // We don't have absolute start_time on the client, so we approximate with the order given.
-  // span.duration_ms is the only timing we have; we stack them in the order provided.
-  const effective = totalMs > 0 ? totalMs : 1;
+  const { effective, epochStart } = useMemo(() => {
+    const times = nodes.map((n) => new Date(n.start_time).getTime());
+    const minT = Math.min(...times);
+    const eff = totalMs > 0 ? totalMs : 1;
+    return { effective: eff, epochStart: minT };
+  }, [nodes, totalMs]);
+
+  const sorted = useMemo(
+    () => [...nodes].sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime()),
+    [nodes]
+  );
 
   if (nodes.length === 0) return null;
 
   return (
     <div className="space-y-1 overflow-x-auto">
-      {nodes.map((span) => {
+      {sorted.map((span) => {
         const isAffected = affectedSet.has(span.id);
         const isSelected = selectedSpanId === span.id;
+        const startOffset = new Date(span.start_time).getTime() - epochStart;
+        const leftPct = Math.min(99, (startOffset / effective) * 100);
         const widthPct = Math.max(
           MIN_WIDTH_PX,
           Math.round((span.duration_ms / effective) * 100)
@@ -70,10 +79,10 @@ export default function TimelineView({
             </span>
 
             {/* Bar track */}
-            <div className="relative h-4 flex-1 overflow-hidden rounded bg-slate-100">
+            <div className="relative h-4 flex-1 rounded bg-slate-100">
               <div
-                className={clsx("h-full rounded transition-all", barColor)}
-                style={{ width: `${widthPct}%` }}
+                className={clsx("absolute h-full rounded transition-all", barColor)}
+                style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
               />
             </div>
 
