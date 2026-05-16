@@ -11,7 +11,30 @@ const NAV = [
   { href: "/sources",  label: "Sources",  icon: Database },
 ];
 
-export default function NavSidebar() {
+function SyncDot({ lastSyncedAt }: { lastSyncedAt: string | null }) {
+  if (!lastSyncedAt) return null;
+
+  const diffMin = Math.round((Date.now() - new Date(lastSyncedAt).getTime()) / 60_000);
+  const dotColor =
+    diffMin <= 30 ? "bg-green-400" :
+    diffMin <= 120 ? "bg-amber-400" :
+    "bg-red-400";
+  const label =
+    diffMin < 60 ? `synced ${diffMin}m ago` : `synced ${Math.round(diffMin / 60)}h ago`;
+
+  return (
+    <div className="flex items-center gap-1.5 px-4 py-3 text-xs text-slate-500">
+      <span className={clsx("h-2 w-2 shrink-0 rounded-full", dotColor)} />
+      {label}
+    </div>
+  );
+}
+
+interface Props {
+  lastSyncedAt?: string | null;
+}
+
+export default function NavSidebar({ lastSyncedAt }: Props) {
   const pathname = usePathname();
 
   return (
@@ -43,7 +66,8 @@ export default function NavSidebar() {
         })}
       </nav>
 
-      <div className="px-4 py-3 text-xs text-slate-600">v0.1.0</div>
+      <SyncDot lastSyncedAt={lastSyncedAt ?? null} />
+      <div className="px-4 pb-3 text-xs text-slate-600">v0.1.0</div>
     </aside>
   );
 }

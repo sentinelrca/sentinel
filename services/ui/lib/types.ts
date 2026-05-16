@@ -76,6 +76,9 @@ export interface TraceListResponse {
   total: number;
   limit: number;
   offset: number;
+  total_traces_analyzed: number;
+  issues_by_severity: Record<string, number>;
+  last_synced_at: string | null;
 }
 
 export interface TraceInsightsResponse {
@@ -89,6 +92,7 @@ export interface Source {
   kind: string;
   alias: string | null;
   created_at: string | null;
+  last_synced_at: string | null;
 }
 
 export interface SourceListResponse {

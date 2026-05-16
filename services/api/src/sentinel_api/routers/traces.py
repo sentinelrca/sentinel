@@ -7,8 +7,8 @@ from typing import Any
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 
-from sentinel_pipeline.db.clickhouse import fetch_trace_stats_batch
-from sentinel_pipeline.db.postgres import InsightRow, WorkspaceRow, get_session
+from sentinel_pipeline.db.clickhouse import count_distinct_traces, fetch_trace_stats_batch
+from sentinel_pipeline.db.postgres import InsightRow, SourceRow, WorkspaceRow, get_session
 
 from ..middleware.auth import get_workspace
 
@@ -47,8 +47,25 @@ async def list_traces(
         )
         groups = rows_result.all()
 
+        severity_result = await session.execute(
+            select(InsightRow.severity, func.count().label("cnt"))
+            .where(InsightRow.workspace_id == workspace.id)
+            .group_by(InsightRow.severity)
+        )
+        issues_by_severity = {row.severity: row.cnt for row in severity_result.all()}
+
+        sync_result = await session.execute(
+            select(func.max(SourceRow.last_synced_at)).where(
+                SourceRow.workspace_id == workspace.id
+            )
+        )
+        last_synced_at = sync_result.scalar_one()
+
     trace_ids = [g.trace_id for g in groups]
-    stats = await asyncio.to_thread(fetch_trace_stats_batch, trace_ids, workspace.id)
+    total_traces_analyzed, stats = await asyncio.gather(
+        asyncio.to_thread(count_distinct_traces, workspace.id),
+        asyncio.to_thread(fetch_trace_stats_batch, trace_ids, workspace.id),
+    )
 
     items = []
     for g in groups:
@@ -66,7 +83,15 @@ async def list_traces(
             "total_ms": span_stats["total_ms"],
         })
 
-    return {"items": items, "total": total, "limit": limit, "offset": offset}
+    return {
+        "items": items,
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "total_traces_analyzed": total_traces_analyzed,
+        "issues_by_severity": issues_by_severity,
+        "last_synced_at": last_synced_at.isoformat() if last_synced_at else None,
+    }
 
 
 @router.get("/{trace_id}/insights")
