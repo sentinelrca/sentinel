@@ -13,6 +13,8 @@ dependencies = [
     "langfuse>=3.0",
     "langsmith>=0.1",
     "python-dotenv>=1.0",
+    "psycopg2-binary>=2.9",
+    "clickhouse-driver>=0.2",
 ]
 
 [build-system]
