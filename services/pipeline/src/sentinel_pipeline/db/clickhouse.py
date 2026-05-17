@@ -37,6 +37,30 @@ ORDER BY (workspace_id, toDate(start_time), trace_id)
 SETTINGS index_granularity = 8192;
 """
 
+_CREATE_PROJECT_SPANS_TABLE = """
+CREATE TABLE IF NOT EXISTS project_spans (
+    project_id      String,
+    trace_id        String,
+    span_id         String,
+    parent_span_id  String DEFAULT '',
+    workspace_id    String,
+    name            String,
+    kind            String,
+    status          String,
+    start_time      DateTime64(3, 'UTC'),
+    end_time        DateTime64(3, 'UTC'),
+    model           String DEFAULT '',
+    agent_name      String DEFAULT '',
+    input_tokens    Int64  DEFAULT 0,
+    output_tokens   Int64  DEFAULT 0,
+    retry_count     Int32  DEFAULT 0,
+    error_message   String DEFAULT '',
+    attributes_json String DEFAULT '{}'
+) ENGINE = MergeTree()
+ORDER BY (project_id, trace_id, span_id)
+SETTINGS index_granularity = 8192;
+"""
+
 
 def _get_client() -> Client:
     parsed = urlparse(_CLICKHOUSE_URL)
@@ -53,6 +77,7 @@ def ensure_tables() -> None:
     try:
         client = _get_client()
         client.execute(_CREATE_SPANS_TABLE)
+        client.execute(_CREATE_PROJECT_SPANS_TABLE)
         logger.info("ClickHouse tables ready")
     except Exception:
         logger.exception("Failed to ensure ClickHouse tables")
@@ -152,6 +177,78 @@ def fetch_trace_stats_batch(trace_ids: list[str], workspace_id: str) -> dict[str
     except Exception:
         logger.exception("Failed to fetch trace stats batch")
         return {}
+
+
+def insert_project_spans(project_id: str, spans: list[NormalizedSpan]) -> None:
+    """Bulk insert spans into project_spans for a specific project."""
+    if not spans:
+        return
+    try:
+        client = _get_client()
+        rows = [
+            (
+                project_id,
+                s.trace_id,
+                s.span_id,
+                s.parent_span_id or "",
+                s.workspace_id,
+                s.name,
+                s.kind.value,
+                s.status.value,
+                s.start_time,
+                s.end_time,
+                s.model or "",
+                s.agent_name or "",
+                s.input_tokens or 0,
+                s.output_tokens or 0,
+                s.retry_count,
+                s.error_message or "",
+                json.dumps(s.attributes),
+            )
+            for s in spans
+        ]
+        client.execute("INSERT INTO project_spans VALUES", rows)
+    except Exception:
+        logger.exception("Failed to insert %d project spans for project %s", len(spans), project_id)
+        raise
+
+
+def fetch_project_spans(project_id: str, workspace_id: str) -> list[dict]:
+    """Fetch all spans for a project snapshot from ClickHouse."""
+    try:
+        client = _get_client()
+        rows = client.execute(
+            "SELECT project_id, trace_id, span_id, parent_span_id, workspace_id, "
+            "name, kind, status, start_time, end_time, model, agent_name, "
+            "input_tokens, output_tokens, retry_count, error_message, attributes_json "
+            "FROM project_spans "
+            "WHERE project_id = %(project_id)s AND workspace_id = %(workspace_id)s "
+            "ORDER BY trace_id, start_time",
+            {"project_id": project_id, "workspace_id": workspace_id},
+        )
+        columns = [
+            "project_id", "trace_id", "span_id", "parent_span_id", "workspace_id",
+            "name", "kind", "status", "start_time", "end_time",
+            "model", "agent_name", "input_tokens", "output_tokens",
+            "retry_count", "error_message", "attributes_json",
+        ]
+        return [dict(zip(columns, row)) for row in rows]
+    except Exception:
+        logger.exception("Failed to fetch project spans for project %s", project_id)
+        return []
+
+
+def delete_project_spans(project_id: str) -> None:
+    """Delete all spans for a project from ClickHouse. Called on project delete."""
+    try:
+        client = _get_client()
+        client.execute(
+            "ALTER TABLE project_spans DELETE WHERE project_id = %(project_id)s",
+            {"project_id": project_id},
+        )
+        logger.info("Deleted project_spans for project %s", project_id)
+    except Exception:
+        logger.exception("Failed to delete project_spans for project %s", project_id)
 
 
 def fetch_spans_by_filter(
