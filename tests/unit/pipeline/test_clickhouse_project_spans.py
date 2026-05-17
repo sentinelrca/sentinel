@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -113,7 +113,6 @@ def test_fetch_project_spans_passes_correct_params():
     with patch("sentinel_pipeline.db.clickhouse._get_client", return_value=mock_client):
         fetch_project_spans("proj-abc", "ws-xyz")
 
-    _, kwargs = mock_client.execute.call_args
     params = mock_client.execute.call_args[0][1]
     assert params["project_id"] == "proj-abc"
     assert params["workspace_id"] == "ws-xyz"
@@ -142,17 +141,18 @@ def test_fetch_project_spans_empty_result():
 def test_delete_project_spans_calls_alter_table():
     mock_client = MagicMock()
     with patch("sentinel_pipeline.db.clickhouse._get_client", return_value=mock_client):
-        delete_project_spans("proj-1")
+        delete_project_spans("proj-1", "ws-1")
 
     mock_client.execute.assert_called_once()
     sql = mock_client.execute.call_args[0][0]
     assert "ALTER TABLE project_spans DELETE" in sql
     params = mock_client.execute.call_args[0][1]
     assert params["project_id"] == "proj-1"
+    assert params["workspace_id"] == "ws-1"
 
 
 def test_delete_project_spans_swallows_error():
     mock_client = MagicMock()
     mock_client.execute.side_effect = RuntimeError("CH down")
     with patch("sentinel_pipeline.db.clickhouse._get_client", return_value=mock_client):
-        delete_project_spans("proj-1")  # must not raise
+        delete_project_spans("proj-1", "ws-1")  # must not raise

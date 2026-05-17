@@ -238,13 +238,19 @@ def fetch_project_spans(project_id: str, workspace_id: str) -> list[dict]:
         return []
 
 
-def delete_project_spans(project_id: str) -> None:
-    """Delete all spans for a project from ClickHouse. Called on project delete."""
+def delete_project_spans(project_id: str, workspace_id: str) -> None:
+    """Delete all spans for a project from ClickHouse. Called on project delete.
+
+    Uses ALTER TABLE ... DELETE (a ClickHouse mutation). Mutations are asynchronous —
+    this call returns before data is physically removed. Safe for fire-and-forget cleanup
+    but not suitable for read-after-delete scenarios.
+    """
     try:
         client = _get_client()
         client.execute(
-            "ALTER TABLE project_spans DELETE WHERE project_id = %(project_id)s",
-            {"project_id": project_id},
+            "ALTER TABLE project_spans DELETE "
+            "WHERE project_id = %(project_id)s AND workspace_id = %(workspace_id)s",
+            {"project_id": project_id, "workspace_id": workspace_id},
         )
         logger.info("Deleted project_spans for project %s", project_id)
     except Exception:
