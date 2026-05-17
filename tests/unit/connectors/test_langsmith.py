@@ -306,16 +306,18 @@ def test_pull_by_window_returns_spans_in_range():
 
 
 @respx.mock
-def test_pull_by_window_sends_end_time_param():
-    """end_time must be present so the upper bound is enforced server-side."""
+def test_pull_by_window_sends_correct_time_params():
+    """start_time and end_time must be sent with the correct formatted values."""
     route = respx.get("https://api.smith.langchain.com/api/v1/runs").mock(
         return_value=Response(200, json=[])
     )
     list(connector.pull_by_window(_CONFIG, _SINCE, _UNTIL, _WORKSPACE))
     assert route.called
     sent_params = dict(route.calls[0].request.url.params)
-    assert "end_time" in sent_params
-    assert "start_time" in sent_params
+    since_iso = _SINCE.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+    until_iso = _UNTIL.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+    assert sent_params["start_time"] == since_iso
+    assert sent_params["end_time"] == until_iso
 
 
 @respx.mock
@@ -382,6 +384,7 @@ def test_pull_by_ids_empty_trace_list():
 
 @respx.mock
 def test_pull_by_ids_http_error_skips_trace():
+    """An HTTP error on one trace should not abort the whole iterator."""
     call_count = 0
 
     def _side(request):
@@ -393,4 +396,6 @@ def test_pull_by_ids_http_error_skips_trace():
 
     respx.get("https://api.smith.langchain.com/api/v1/runs").mock(side_effect=_side)
     batches = list(connector.pull_by_ids(_CONFIG, ["trace-bad", "trace-good"], _WORKSPACE))
+    # trace-bad errors → skipped; trace-good succeeds → 1 batch with 1 span
     assert len(batches) == 1
+    assert len(batches[0]) == 1

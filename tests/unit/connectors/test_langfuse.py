@@ -257,16 +257,16 @@ def test_pull_by_window_returns_spans_in_range():
 
 
 @respx.mock
-def test_pull_by_window_sends_to_start_time_param():
-    """toStartTime must be present in the request so the upper bound is enforced."""
+def test_pull_by_window_sends_correct_time_params():
+    """toStartTime and fromStartTime must be sent with the correct ISO values."""
     route = respx.get("https://cloud.langfuse.com/api/public/observations").mock(
         return_value=Response(200, json=_page_response([], total=0))
     )
     list(connector.pull_by_window(_CONFIG, _SINCE, _UNTIL, _WORKSPACE))
     assert route.called
     sent_params = dict(route.calls[0].request.url.params)
-    assert "toStartTime" in sent_params
-    assert "fromStartTime" in sent_params
+    assert sent_params["fromStartTime"] == _SINCE.isoformat()
+    assert sent_params["toStartTime"] == _UNTIL.isoformat()
 
 
 @respx.mock
@@ -350,5 +350,6 @@ def test_pull_by_ids_http_error_skips_trace():
 
     respx.get("https://cloud.langfuse.com/api/public/observations").mock(side_effect=_side)
     batches = list(connector.pull_by_ids(_CONFIG, ["trace-bad", "trace-good"], _WORKSPACE))
+    # trace-bad errors → skipped; trace-good succeeds → 1 batch with 1 span
     assert len(batches) == 1
-    assert batches[0][0].trace_id == "trace-abc"
+    assert len(batches[0]) == 1

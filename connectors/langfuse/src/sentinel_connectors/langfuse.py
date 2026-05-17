@@ -145,7 +145,7 @@ class LangfuseConnector(Connector):
 
             if total_yielded >= limit or len(observations) < _PAGE_SIZE:
                 break
-            page += 1
+            page += 1  # only reached when page was full and limit not yet hit
 
     def pull_by_ids(
         self,
