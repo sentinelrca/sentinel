@@ -25,6 +25,7 @@ def _project_row(**overrides) -> MagicMock:
     row.trace_count = 0
     row.import_count = 0
     row.created_at = _NOW
+    row.last_imported_at = None
     row.last_analyzed_at = None
     for k, v in overrides.items():
         setattr(row, k, v)
@@ -98,6 +99,7 @@ async def test_create_project_success():
             instance.trace_count = 0
             instance.import_count = 0
             instance.created_at = _NOW
+            instance.last_imported_at = None
             instance.last_analyzed_at = None
             MockRow.return_value = instance
             async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
@@ -139,6 +141,7 @@ async def test_create_project_with_filters():
             instance.trace_count = 0
             instance.import_count = 0
             instance.created_at = _NOW
+            instance.last_imported_at = None
             instance.last_analyzed_at = None
             MockRow.return_value = instance
             async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
@@ -207,7 +210,7 @@ async def test_get_project_success():
 async def test_get_project_returns_status_fields():
     app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
 
-    row = _project_row(status="ready", trace_count=42, import_count=2)
+    row = _project_row(status="ready", trace_count=42, import_count=2, last_imported_at=_NOW)
     with patch("sentinel_api.routers.projects.get_session", return_value=_mock_session_scalar_one_or_none(row)):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             resp = await c.get("/v1/projects/proj-1")
@@ -218,6 +221,7 @@ async def test_get_project_returns_status_fields():
     assert body["status"] == "ready"
     assert body["trace_count"] == 42
     assert body["import_count"] == 2
+    assert body["last_imported_at"] is not None
 
 
 @pytest.mark.asyncio

@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 import uuid
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from celery import Celery
 from fastapi import APIRouter, Depends, HTTPException
@@ -36,10 +36,11 @@ class ProjectOut(BaseModel):
     workspace_id: str
     name: str
     filters: dict
-    status: str
+    status: Literal["pending", "importing", "ready", "error"]
     trace_count: int
     import_count: int
     created_at: datetime
+    last_imported_at: datetime | None
     last_analyzed_at: datetime | None
 
 
@@ -53,6 +54,7 @@ def _project_to_out(row: ProjectRow) -> ProjectOut:
         trace_count=row.trace_count,
         import_count=row.import_count,
         created_at=row.created_at,
+        last_imported_at=row.last_imported_at,
         last_analyzed_at=row.last_analyzed_at,
     )
 

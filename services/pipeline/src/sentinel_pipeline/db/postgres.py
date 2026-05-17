@@ -91,6 +91,7 @@ class ProjectRow(Base):
     trace_count      = Column(Integer, nullable=False, default=0)
     import_count     = Column(Integer, nullable=False, default=0)
     created_at       = Column(DateTime(timezone=True), server_default=func.now())
+    last_imported_at = Column(DateTime(timezone=True), nullable=True)
     last_analyzed_at = Column(DateTime(timezone=True), nullable=True)
 
 

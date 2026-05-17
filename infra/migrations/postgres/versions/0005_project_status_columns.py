@@ -28,9 +28,14 @@ def upgrade() -> None:
         "projects",
         sa.Column("import_count", sa.Integer(), nullable=False, server_default="0"),
     )
+    op.add_column(
+        "projects",
+        sa.Column("last_imported_at", sa.DateTime(timezone=True), nullable=True),
+    )
 
 
 def downgrade() -> None:
+    op.drop_column("projects", "last_imported_at")
     op.drop_column("projects", "import_count")
     op.drop_column("projects", "trace_count")
     op.drop_column("projects", "status")
