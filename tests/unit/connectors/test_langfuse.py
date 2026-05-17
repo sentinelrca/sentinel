@@ -237,3 +237,118 @@ def test_store_content_true_namespaces_input():
     span = connector._map_observation(obs, _WORKSPACE, store_content=True)
     assert span.attributes["langfuse.input"] == {"prompt": "hello", "langfuse.type": "INJECTED"}
     assert span.attributes["langfuse.type"] == "generation"  # not overwritten by flattening
+
+
+# ---------------------------------------------------------------------------
+# pull_by_window
+# ---------------------------------------------------------------------------
+
+_UNTIL = datetime(2026, 1, 2, tzinfo=timezone.utc)
+
+
+@respx.mock
+def test_pull_by_window_returns_spans_in_range():
+    respx.get("https://cloud.langfuse.com/api/public/observations").mock(
+        return_value=Response(200, json=_page_response([_OBS_LLM], total=1))
+    )
+    batches = list(connector.pull_by_window(_CONFIG, _SINCE, _UNTIL, _WORKSPACE))
+    assert len(batches) == 1
+    assert batches[0][0].span_id == "obs-001"
+
+
+@respx.mock
+def test_pull_by_window_sends_to_start_time_param():
+    """toStartTime must be present in the request so the upper bound is enforced."""
+    route = respx.get("https://cloud.langfuse.com/api/public/observations").mock(
+        return_value=Response(200, json=_page_response([], total=0))
+    )
+    list(connector.pull_by_window(_CONFIG, _SINCE, _UNTIL, _WORKSPACE))
+    assert route.called
+    sent_params = dict(route.calls[0].request.url.params)
+    assert "toStartTime" in sent_params
+    assert "fromStartTime" in sent_params
+
+
+@respx.mock
+def test_pull_by_window_respects_limit():
+    """Should stop yielding after `limit` spans even if more pages exist."""
+    full_page = [{**_OBS_LLM, "id": f"obs-{i}"} for i in range(100)]
+    # Both pages return 100 obs — without limit the connector would fetch page 2
+    respx.get("https://cloud.langfuse.com/api/public/observations").mock(
+        return_value=Response(200, json={"data": full_page, "meta": {}})
+    )
+    batches = list(connector.pull_by_window(_CONFIG, _SINCE, _UNTIL, _WORKSPACE, limit=50))
+    total = sum(len(b) for b in batches)
+    assert total == 50
+
+
+@respx.mock
+def test_pull_by_window_empty_response():
+    respx.get("https://cloud.langfuse.com/api/public/observations").mock(
+        return_value=Response(200, json=_page_response([], total=0))
+    )
+    assert list(connector.pull_by_window(_CONFIG, _SINCE, _UNTIL, _WORKSPACE)) == []
+
+
+@respx.mock
+def test_pull_by_window_stops_on_http_error():
+    respx.get("https://cloud.langfuse.com/api/public/observations").mock(
+        return_value=Response(500, text="error")
+    )
+    assert list(connector.pull_by_window(_CONFIG, _SINCE, _UNTIL, _WORKSPACE)) == []
+
+
+# ---------------------------------------------------------------------------
+# pull_by_ids
+# ---------------------------------------------------------------------------
+
+@respx.mock
+def test_pull_by_ids_fetches_per_trace():
+    """One batch should be yielded per trace ID that has observations."""
+    respx.get("https://cloud.langfuse.com/api/public/observations").mock(
+        return_value=Response(200, json=_page_response([_OBS_LLM], total=1))
+    )
+    batches = list(connector.pull_by_ids(_CONFIG, ["trace-abc", "trace-xyz"], _WORKSPACE))
+    assert len(batches) == 2  # one batch per trace
+
+
+@respx.mock
+def test_pull_by_ids_skips_empty_trace():
+    """Traces with no observations must not produce a batch."""
+    call_count = 0
+
+    def _side(request):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return Response(200, json=_page_response([_OBS_LLM], total=1))
+        return Response(200, json=_page_response([], total=0))
+
+    respx.get("https://cloud.langfuse.com/api/public/observations").mock(side_effect=_side)
+    batches = list(connector.pull_by_ids(_CONFIG, ["trace-abc", "trace-empty"], _WORKSPACE))
+    assert len(batches) == 1
+    assert batches[0][0].trace_id == "trace-abc"
+
+
+@respx.mock
+def test_pull_by_ids_empty_trace_list():
+    batches = list(connector.pull_by_ids(_CONFIG, [], _WORKSPACE))
+    assert batches == []
+
+
+@respx.mock
+def test_pull_by_ids_http_error_skips_trace():
+    """An HTTP error on one trace should not abort the whole iterator."""
+    call_count = 0
+
+    def _side(request):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return Response(500, text="error")
+        return Response(200, json=_page_response([_OBS_LLM], total=1))
+
+    respx.get("https://cloud.langfuse.com/api/public/observations").mock(side_effect=_side)
+    batches = list(connector.pull_by_ids(_CONFIG, ["trace-bad", "trace-good"], _WORKSPACE))
+    assert len(batches) == 1
+    assert batches[0][0].trace_id == "trace-abc"

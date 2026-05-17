@@ -56,3 +56,48 @@ class Connector(ABC):
             workspace_id: Injected into every NormalizedSpan.workspace_id.
         """
         ...
+
+    @abstractmethod
+    def pull_by_window(
+        self,
+        config: dict,
+        since: datetime,
+        until: datetime,
+        workspace_id: str,
+        limit: int = 500,
+    ) -> Iterator[list[NormalizedSpan]]:
+        """
+        Yield batches of NormalizedSpan objects within a closed time window.
+
+        Used by offline project import to fetch a bounded, reproducible snapshot.
+        Stops as soon as `limit` spans have been yielded (free-tier guard).
+
+        Args:
+            config:       Source-specific credentials/config dict.
+            since:        Lower bound (inclusive) on observation start time.
+            until:        Upper bound (inclusive) on observation start time.
+            workspace_id: Injected into every NormalizedSpan.workspace_id.
+            limit:        Maximum total spans to yield. Callers enforce this
+                          as a trace-count proxy for free-tier quota.
+        """
+        ...
+
+    @abstractmethod
+    def pull_by_ids(
+        self,
+        config: dict,
+        trace_ids: list[str],
+        workspace_id: str,
+    ) -> Iterator[list[NormalizedSpan]]:
+        """
+        Yield batches of NormalizedSpan objects for the given trace IDs.
+
+        Used by offline project import when the user specifies exact traces.
+        Makes one API call per trace ID (or per small batch, implementation-defined).
+
+        Args:
+            config:       Source-specific credentials/config dict.
+            trace_ids:    Explicit list of trace IDs to fetch.
+            workspace_id: Injected into every NormalizedSpan.workspace_id.
+        """
+        ...
