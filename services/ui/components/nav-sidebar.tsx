@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, Database, GitBranch, Settings, ShieldAlert } from "lucide-react";
+import { Activity, Database, FolderOpen, GitBranch, Settings, ShieldAlert } from "lucide-react";
 import { clsx } from "clsx";
 
 const NAV = [
   { href: "/traces",         label: "Traces",   icon: GitBranch },
   { href: "/insights",       label: "Insights", icon: ShieldAlert },
+  { href: "/projects",       label: "Projects", icon: FolderOpen },
   { href: "/sources",        label: "Sources",  icon: Database },
   { href: "/settings/rules", label: "Settings", icon: Settings },
 ];

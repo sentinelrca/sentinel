@@ -79,6 +79,17 @@ class RuleConfigRow(Base):
     updated_at   = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
+class ProjectRow(Base):
+    __tablename__ = "projects"
+
+    id               = Column(String, primary_key=True)
+    workspace_id     = Column(String, nullable=False)
+    name             = Column(String, nullable=False)
+    filters          = Column(JSON,   nullable=False, default=dict)
+    created_at       = Column(DateTime(timezone=True), server_default=func.now())
+    last_analyzed_at = Column(DateTime(timezone=True), nullable=True)
+
+
 class InsightRow(Base):
     __tablename__ = "insights"
 
@@ -93,4 +104,5 @@ class InsightRow(Base):
     affected_span_ids  = Column(JSON,   nullable=False, default=list)
     evidence           = Column(JSON,   nullable=False, default=dict)
     status             = Column(String, nullable=False, default="open")
+    project_id         = Column(String, nullable=True, index=True)
     created_at         = Column(DateTime(timezone=True), server_default=func.now(), index=True)

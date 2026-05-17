@@ -27,6 +27,7 @@ async def list_traces(
         _open_filter = (
             InsightRow.workspace_id == workspace.id,
             InsightRow.status == "open",
+            InsightRow.project_id == None,
         )
 
         count_result = await session.execute(

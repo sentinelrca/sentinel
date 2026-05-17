@@ -37,7 +37,10 @@ async def list_insights(
     workspace: WorkspaceRow = Depends(get_workspace),
 ) -> dict[str, Any]:
     async with get_session() as session:
-        base = select(InsightRow).where(InsightRow.workspace_id == workspace.id)
+        base = select(InsightRow).where(
+            InsightRow.workspace_id == workspace.id,
+            InsightRow.project_id == None,
+        )
         if not include_ignored:
             base = base.where(InsightRow.status == "open")
         if severity:

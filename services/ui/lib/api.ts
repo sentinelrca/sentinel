@@ -2,6 +2,9 @@ import type {
   FlowGraph,
   Insight,
   InsightListResponse,
+  Project,
+  ProjectFilters,
+  ProjectsResponse,
   RuleConfig,
   RuleConfigListResponse,
   Source,
@@ -123,4 +126,34 @@ export async function putRuleConfig(
 
 export async function deleteRuleConfig(ruleId: string): Promise<void> {
   await apiFetch<unknown>(`/v1/rule-configs/${ruleId}`, { method: "DELETE" });
+}
+
+export async function getProjects(): Promise<Project[]> {
+  const data = await apiFetch<ProjectsResponse>("/v1/projects");
+  return data.items;
+}
+
+export async function getProject(projectId: string): Promise<Project> {
+  return apiFetch<Project>(`/v1/projects/${projectId}`);
+}
+
+export async function createProject(name: string, filters: ProjectFilters): Promise<Project> {
+  return apiFetch<Project>("/v1/projects", {
+    method: "POST",
+    body: JSON.stringify({ name, filters }),
+  });
+}
+
+export async function deleteProject(projectId: string): Promise<void> {
+  await apiFetch<unknown>(`/v1/projects/${projectId}`, { method: "DELETE" });
+}
+
+export async function analyzeProject(projectId: string): Promise<{ task_id: string }> {
+  return apiFetch<{ task_id: string }>(`/v1/projects/${projectId}/analyze`, {
+    method: "POST",
+  });
+}
+
+export async function getProjectInsights(projectId: string): Promise<InsightListResponse> {
+  return apiFetch<InsightListResponse>(`/v1/projects/${projectId}/insights`);
 }

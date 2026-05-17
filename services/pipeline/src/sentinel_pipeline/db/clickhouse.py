@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+from datetime import datetime
 from urllib.parse import urlparse
 
 from clickhouse_driver import Client
@@ -151,3 +152,45 @@ def fetch_trace_stats_batch(trace_ids: list[str], workspace_id: str) -> dict[str
     except Exception:
         logger.exception("Failed to fetch trace stats batch")
         return {}
+
+
+def fetch_spans_by_filter(
+    workspace_id: str,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+    trace_ids: list[str] | None = None,
+) -> list[dict]:
+    """Fetch spans for a workspace with optional date range and trace_id filters."""
+    try:
+        client = _get_client()
+        conditions = ["workspace_id = %(workspace_id)s"]
+        params: dict = {"workspace_id": workspace_id}
+
+        if date_from is not None:
+            conditions.append("start_time >= %(date_from)s")
+            params["date_from"] = date_from
+
+        if date_to is not None:
+            conditions.append("start_time <= %(date_to)s")
+            params["date_to"] = date_to
+
+        if trace_ids is not None:
+            conditions.append("trace_id IN %(trace_ids)s")
+            params["trace_ids"] = tuple(trace_ids)
+
+        where_clause = " AND ".join(conditions)
+        query = (
+            f"SELECT * FROM spans WHERE {where_clause} "
+            "ORDER BY trace_id, start_time"
+        )
+        rows = client.execute(query, params)
+        columns = [
+            "trace_id", "span_id", "parent_span_id", "workspace_id",
+            "name", "kind", "status", "start_time", "end_time",
+            "model", "agent_name", "input_tokens", "output_tokens",
+            "retry_count", "error_message", "attributes_json",
+        ]
+        return [dict(zip(columns, row)) for row in rows]
+    except Exception:
+        logger.exception("Failed to fetch spans by filter for workspace %s", workspace_id)
+        return []

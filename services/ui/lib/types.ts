@@ -110,3 +110,23 @@ export interface RuleConfig {
 export interface RuleConfigListResponse {
   items: RuleConfig[];
 }
+
+export interface ProjectFilters {
+  date_from?: string;   // ISO datetime string
+  date_to?: string;     // ISO datetime string
+  trace_ids?: string[]; // optional list of trace IDs
+}
+
+export interface Project {
+  id: string;
+  workspace_id: string;
+  name: string;
+  filters: ProjectFilters;
+  created_at: string;
+  last_analyzed_at: string | null;
+}
+
+export interface ProjectsResponse {
+  items: Project[];
+  total: number;
+}
