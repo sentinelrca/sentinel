@@ -36,6 +36,9 @@ class ProjectOut(BaseModel):
     workspace_id: str
     name: str
     filters: dict
+    status: str
+    trace_count: int
+    import_count: int
     created_at: datetime
     last_analyzed_at: datetime | None
 
@@ -46,6 +49,9 @@ def _project_to_out(row: ProjectRow) -> ProjectOut:
         workspace_id=row.workspace_id,
         name=row.name,
         filters=row.filters or {},
+        status=row.status,
+        trace_count=row.trace_count,
+        import_count=row.import_count,
         created_at=row.created_at,
         last_analyzed_at=row.last_analyzed_at,
     )
