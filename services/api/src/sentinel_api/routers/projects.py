@@ -1,10 +1,12 @@
 """Projects router — manage and analyze collections of traces."""
 from __future__ import annotations
 
+import os
 import uuid
 from datetime import datetime
 from typing import Any
 
+from celery import Celery
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import delete, select
@@ -17,6 +19,9 @@ from sentinel_pipeline.db.postgres import (
 )
 
 from ..middleware.auth import get_workspace
+
+_REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+_celery = Celery(broker=_REDIS_URL, backend=_REDIS_URL)
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -135,9 +140,10 @@ async def analyze_project_endpoint(
     if row is None:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    from sentinel_worker.tasks.analyze_project import analyze_project
-
-    task = analyze_project.delay(project_id, workspace.id, workspace.tier)
+    task = _celery.send_task(
+        "analyze_project",
+        args=[project_id, workspace.id, workspace.tier],
+    )
     return {"task_id": task.id}
 
 

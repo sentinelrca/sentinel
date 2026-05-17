@@ -11,6 +11,7 @@ app = Celery(
     include=[
         "sentinel_worker.tasks.process_trace",
         "sentinel_worker.tasks.sync_source",
+        "sentinel_worker.tasks.analyze_project",
     ],
 )
 
