@@ -82,11 +82,16 @@ class RuleConfigRow(Base):
 class ProjectRow(Base):
     __tablename__ = "projects"
 
-    id               = Column(String, primary_key=True)
-    workspace_id     = Column(String, nullable=False)
-    name             = Column(String, nullable=False)
-    filters          = Column(JSON,   nullable=False, default=dict)
+    # status values: 'pending' | 'importing' | 'ready' | 'error'
+    id               = Column(String,  primary_key=True)
+    workspace_id     = Column(String,  nullable=False)
+    name             = Column(String,  nullable=False)
+    filters          = Column(JSON,    nullable=False, default=dict)
+    status           = Column(String,  nullable=False, default="pending")
+    trace_count      = Column(Integer, nullable=False, default=0)
+    import_count     = Column(Integer, nullable=False, default=0)
     created_at       = Column(DateTime(timezone=True), server_default=func.now())
+    last_imported_at = Column(DateTime(timezone=True), nullable=True)
     last_analyzed_at = Column(DateTime(timezone=True), nullable=True)
 
 

@@ -21,7 +21,11 @@ def _project_row(**overrides) -> MagicMock:
     row.workspace_id = "ws-1"
     row.name = "My Project"
     row.filters = {}
+    row.status = "pending"
+    row.trace_count = 0
+    row.import_count = 0
     row.created_at = _NOW
+    row.last_imported_at = None
     row.last_analyzed_at = None
     for k, v in overrides.items():
         setattr(row, k, v)
@@ -91,7 +95,11 @@ async def test_create_project_success():
             instance.workspace_id = "ws-1"
             instance.name = "My Project"
             instance.filters = {}
+            instance.status = "pending"
+            instance.trace_count = 0
+            instance.import_count = 0
             instance.created_at = _NOW
+            instance.last_imported_at = None
             instance.last_analyzed_at = None
             MockRow.return_value = instance
             async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
@@ -101,6 +109,9 @@ async def test_create_project_success():
     assert resp.status_code == 201
     assert resp.json()["name"] == "My Project"
     assert resp.json()["workspace_id"] == "ws-1"
+    assert resp.json()["status"] == "pending"
+    assert resp.json()["trace_count"] == 0
+    assert resp.json()["import_count"] == 0
 
 
 @pytest.mark.asyncio
@@ -126,7 +137,11 @@ async def test_create_project_with_filters():
             instance.workspace_id = "ws-1"
             instance.name = "January"
             instance.filters = filters
+            instance.status = "pending"
+            instance.trace_count = 0
+            instance.import_count = 0
             instance.created_at = _NOW
+            instance.last_imported_at = None
             instance.last_analyzed_at = None
             MockRow.return_value = instance
             async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
@@ -192,6 +207,24 @@ async def test_get_project_success():
 
 
 @pytest.mark.asyncio
+async def test_get_project_returns_status_fields():
+    app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
+
+    row = _project_row(status="ready", trace_count=42, import_count=2, last_imported_at=_NOW)
+    with patch("sentinel_api.routers.projects.get_session", return_value=_mock_session_scalar_one_or_none(row)):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+            resp = await c.get("/v1/projects/proj-1")
+
+    app.dependency_overrides.clear()
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "ready"
+    assert body["trace_count"] == 42
+    assert body["import_count"] == 2
+    assert body["last_imported_at"] is not None
+
+
+@pytest.mark.asyncio
 async def test_get_project_not_found_returns_404():
     app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
 
@@ -243,18 +276,18 @@ async def test_analyze_project_queues_task():
     mock_task = MagicMock()
     mock_task.id = "celery-task-abc123"
 
-    mock_analyze = MagicMock()
-    mock_analyze.delay.return_value = mock_task
-
     with patch("sentinel_api.routers.projects.get_session", return_value=_mock_session_scalar_one_or_none(row)):
-        # Patch the lazy import inside the analyze endpoint
-        with patch.dict("sys.modules", {"sentinel_worker.tasks.analyze_project": MagicMock(analyze_project=mock_analyze)}):
+        with patch("sentinel_api.routers.projects._celery.send_task", return_value=mock_task) as mock_send:
             async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
                 resp = await c.post("/v1/projects/proj-1/analyze")
 
     app.dependency_overrides.clear()
     assert resp.status_code == 200
     assert resp.json()["task_id"] == "celery-task-abc123"
+    mock_send.assert_called_once_with(
+        "analyze_project",
+        args=["proj-1", "ws-1", 0],
+    )
 
 
 @pytest.mark.asyncio
