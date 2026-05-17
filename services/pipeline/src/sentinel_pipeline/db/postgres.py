@@ -67,6 +67,18 @@ class SourceRow(Base):
     created_at     = Column(DateTime(timezone=True), server_default=func.now())
 
 
+class RuleConfigRow(Base):
+    __tablename__ = "rule_configs"
+
+    id           = Column(String, primary_key=True)
+    workspace_id = Column(String, nullable=False)
+    rule_id      = Column(String, nullable=False)
+    action       = Column(String, nullable=False)   # 'DISABLED' | 'OVERRIDE_SEVERITY'
+    severity     = Column(String, nullable=True)
+    created_at   = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at   = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
 class InsightRow(Base):
     __tablename__ = "insights"
 

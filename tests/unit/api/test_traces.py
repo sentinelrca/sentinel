@@ -36,14 +36,37 @@ def _insight_row(
     return row
 
 
-def _mock_session_group(groups: list):
-    """Return an async context manager whose execute() yields group results."""
+def _mock_session_group(groups: list, severity_counts: dict | None = None, last_synced_at=None):
+    """Return an async context manager whose execute() yields all list_traces results.
+
+    list_traces makes 4 execute calls inside the session:
+      1. COUNT DISTINCT trace_id  → scalar_one
+      2. GROUP BY rows            → .all()
+      3. severity breakdown       → .all()
+      4. MAX(last_synced_at)      → scalar_one
+    """
     session = AsyncMock()
+
     count_result = MagicMock()
     count_result.scalar_one.return_value = len(groups)
+
     rows_result = MagicMock()
     rows_result.all.return_value = groups
-    session.execute = AsyncMock(side_effect=[count_result, rows_result])
+
+    sev_rows = []
+    if severity_counts:
+        for sev, cnt in severity_counts.items():
+            r = MagicMock()
+            r.severity = sev
+            r.cnt = cnt
+            sev_rows.append(r)
+    severity_result = MagicMock()
+    severity_result.all.return_value = sev_rows
+
+    sync_result = MagicMock()
+    sync_result.scalar_one.return_value = last_synced_at
+
+    session.execute = AsyncMock(side_effect=[count_result, rows_result, severity_result, sync_result])
     cm = MagicMock()
     cm.__aenter__ = AsyncMock(return_value=session)
     cm.__aexit__ = AsyncMock(return_value=False)
@@ -81,13 +104,25 @@ def _group(
 # GET /v1/traces
 # ---------------------------------------------------------------------------
 
+def _patches(groups=None, stats=None):
+    """Context manager stacking the three patches needed by list_traces."""
+    from contextlib import ExitStack
+    stack = ExitStack()
+    stack.enter_context(patch("sentinel_api.routers.traces.get_session",
+                              return_value=_mock_session_group(groups or [])))
+    stack.enter_context(patch("sentinel_api.routers.traces.fetch_trace_stats_batch",
+                              return_value=stats or {}))
+    stack.enter_context(patch("sentinel_api.routers.traces.count_distinct_traces",
+                              return_value=len(groups or [])))
+    return stack
+
+
 @pytest.mark.asyncio
 async def test_list_traces_empty():
     app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
-    with patch("sentinel_api.routers.traces.get_session", return_value=_mock_session_group([])):
-        with patch("sentinel_api.routers.traces.fetch_trace_stats_batch", return_value={}):
-            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
-                resp = await c.get("/v1/traces")
+    with _patches():
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+            resp = await c.get("/v1/traces")
     app.dependency_overrides.clear()
     assert resp.status_code == 200
     body = resp.json()
@@ -100,10 +135,9 @@ async def test_list_traces_returns_worst_severity():
     groups = [_group("t1", 2, ["retry_storm", "latency_spike"], ["warning", "high"])]
     stats = {"t1": {"span_count": 10, "llm_calls": 3, "total_ms": 1200}}
     app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
-    with patch("sentinel_api.routers.traces.get_session", return_value=_mock_session_group(groups)):
-        with patch("sentinel_api.routers.traces.fetch_trace_stats_batch", return_value=stats):
-            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
-                resp = await c.get("/v1/traces")
+    with _patches(groups=groups, stats=stats):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+            resp = await c.get("/v1/traces")
     app.dependency_overrides.clear()
     assert resp.status_code == 200
     item = resp.json()["items"][0]
@@ -118,10 +152,9 @@ async def test_list_traces_span_stats_included():
     groups = [_group("t2", 1, ["agent_loop"], ["critical"])]
     stats = {"t2": {"span_count": 19, "llm_calls": 6, "total_ms": 5600}}
     app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
-    with patch("sentinel_api.routers.traces.get_session", return_value=_mock_session_group(groups)):
-        with patch("sentinel_api.routers.traces.fetch_trace_stats_batch", return_value=stats):
-            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
-                resp = await c.get("/v1/traces")
+    with _patches(groups=groups, stats=stats):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+            resp = await c.get("/v1/traces")
     app.dependency_overrides.clear()
     item = resp.json()["items"][0]
     assert item["span_count"] == 19
@@ -133,10 +166,9 @@ async def test_list_traces_span_stats_included():
 async def test_list_traces_missing_stats_defaults_to_zero():
     groups = [_group("t3", 1, ["sequential_tools"], ["info"])]
     app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
-    with patch("sentinel_api.routers.traces.get_session", return_value=_mock_session_group(groups)):
-        with patch("sentinel_api.routers.traces.fetch_trace_stats_batch", return_value={}):
-            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
-                resp = await c.get("/v1/traces")
+    with _patches(groups=groups):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+            resp = await c.get("/v1/traces")
     app.dependency_overrides.clear()
     item = resp.json()["items"][0]
     assert item["span_count"] == 0
@@ -148,10 +180,9 @@ async def test_list_traces_missing_stats_defaults_to_zero():
 async def test_list_traces_worst_severity_critical_beats_all():
     groups = [_group("t4", 3, ["a", "b", "c"], ["info", "warning", "critical"])]
     app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
-    with patch("sentinel_api.routers.traces.get_session", return_value=_mock_session_group(groups)):
-        with patch("sentinel_api.routers.traces.fetch_trace_stats_batch", return_value={}):
-            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
-                resp = await c.get("/v1/traces")
+    with _patches(groups=groups):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+            resp = await c.get("/v1/traces")
     app.dependency_overrides.clear()
     assert resp.json()["items"][0]["worst_severity"] == "critical"
 
@@ -194,10 +225,9 @@ async def test_get_trace_insights_empty():
 async def test_list_traces_pagination_params_forwarded():
     """limit and offset from query params are reflected in the response."""
     app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
-    with patch("sentinel_api.routers.traces.get_session", return_value=_mock_session_group([])):
-        with patch("sentinel_api.routers.traces.fetch_trace_stats_batch", return_value={}):
-            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
-                resp = await c.get("/v1/traces?limit=10&offset=20")
+    with _patches():
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+            resp = await c.get("/v1/traces?limit=10&offset=20")
     app.dependency_overrides.clear()
     body = resp.json()
     assert resp.status_code == 200
@@ -209,10 +239,9 @@ async def test_list_traces_pagination_params_forwarded():
 async def test_list_traces_pagination_defaults():
     """Default limit=50, offset=0 when not supplied."""
     app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
-    with patch("sentinel_api.routers.traces.get_session", return_value=_mock_session_group([])):
-        with patch("sentinel_api.routers.traces.fetch_trace_stats_batch", return_value={}):
-            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
-                resp = await c.get("/v1/traces")
+    with _patches():
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+            resp = await c.get("/v1/traces")
     app.dependency_overrides.clear()
     body = resp.json()
     assert body["limit"] == 50
@@ -223,10 +252,9 @@ async def test_list_traces_pagination_defaults():
 async def test_list_traces_rejects_limit_above_max():
     """limit > 200 should be rejected with 422."""
     app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
-    with patch("sentinel_api.routers.traces.get_session", return_value=_mock_session_group([])):
-        with patch("sentinel_api.routers.traces.fetch_trace_stats_batch", return_value={}):
-            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
-                resp = await c.get("/v1/traces?limit=201")
+    with _patches():
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+            resp = await c.get("/v1/traces?limit=201")
     app.dependency_overrides.clear()
     assert resp.status_code == 422
 
@@ -240,10 +268,9 @@ async def test_list_traces_deduplicates_rule_ids():
     """When array_agg returns duplicate rule IDs, the response must deduplicate them."""
     groups = [_group("t6", 3, ["retry_storm", "retry_storm", "latency_spike"], ["high", "high", "warning"])]
     app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
-    with patch("sentinel_api.routers.traces.get_session", return_value=_mock_session_group(groups)):
-        with patch("sentinel_api.routers.traces.fetch_trace_stats_batch", return_value={}):
-            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
-                resp = await c.get("/v1/traces")
+    with _patches(groups=groups):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+            resp = await c.get("/v1/traces")
     app.dependency_overrides.clear()
     item = resp.json()["items"][0]
     assert item["rule_ids"].count("retry_storm") == 1, "duplicate rule_ids must be removed"
@@ -255,10 +282,9 @@ async def test_list_traces_rule_ids_preserves_order():
     """Dedup must preserve the first-seen order, not sort or reverse."""
     groups = [_group("t7", 4, ["b", "a", "b", "c"], ["info", "info", "info", "info"])]
     app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
-    with patch("sentinel_api.routers.traces.get_session", return_value=_mock_session_group(groups)):
-        with patch("sentinel_api.routers.traces.fetch_trace_stats_batch", return_value={}):
-            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
-                resp = await c.get("/v1/traces")
+    with _patches(groups=groups):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+            resp = await c.get("/v1/traces")
     app.dependency_overrides.clear()
     assert resp.json()["items"][0]["rule_ids"] == ["b", "a", "c"]
 
@@ -272,10 +298,9 @@ async def test_list_traces_empty_severities_falls_back_to_info():
     """A trace group with an empty severities list must not crash — defaults to 'info'."""
     groups = [_group("t8", 1, ["some_rule"], [])]  # empty severities
     app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
-    with patch("sentinel_api.routers.traces.get_session", return_value=_mock_session_group(groups)):
-        with patch("sentinel_api.routers.traces.fetch_trace_stats_batch", return_value={}):
-            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
-                resp = await c.get("/v1/traces")
+    with _patches(groups=groups):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+            resp = await c.get("/v1/traces")
     app.dependency_overrides.clear()
     assert resp.status_code == 200
     assert resp.json()["items"][0]["worst_severity"] == "info"
@@ -291,13 +316,10 @@ async def test_list_traces_multiple_traces_ordered_by_latest():
         _group("older",  1, ["a"], ["info"],    latest=t_old),
         _group("newer",  1, ["b"], ["warning"], latest=t_new),
     ]
-    # mock returns them in "older first" order; router should preserve DB ordering (we trust the query)
-    # this test verifies the response shape for multiple items
     app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
-    with patch("sentinel_api.routers.traces.get_session", return_value=_mock_session_group(groups)):
-        with patch("sentinel_api.routers.traces.fetch_trace_stats_batch", return_value={}):
-            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
-                resp = await c.get("/v1/traces")
+    with _patches(groups=groups):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+            resp = await c.get("/v1/traces")
     app.dependency_overrides.clear()
     items = resp.json()["items"]
     assert len(items) == 2

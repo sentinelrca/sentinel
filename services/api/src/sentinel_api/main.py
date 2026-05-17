@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .routers.health import router as health_router
 from .routers.insights import router as insights_router
 from .routers.flows import router as flows_router
+from .routers.rule_configs import router as rule_configs_router
 from .routers.sources import router as sources_router
 from .routers.traces import router as traces_router
 
@@ -25,7 +26,8 @@ app.add_middleware(
 )
 
 app.include_router(health_router)
-app.include_router(insights_router, prefix="/v1")
-app.include_router(flows_router,    prefix="/v1")
-app.include_router(sources_router,  prefix="/v1")
-app.include_router(traces_router,   prefix="/v1")
+app.include_router(insights_router,    prefix="/v1")
+app.include_router(flows_router,       prefix="/v1")
+app.include_router(rule_configs_router, prefix="/v1")
+app.include_router(sources_router,     prefix="/v1")
+app.include_router(traces_router,      prefix="/v1")

@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, Database, GitBranch, ShieldAlert } from "lucide-react";
+import { Activity, Database, GitBranch, Settings, ShieldAlert } from "lucide-react";
 import { clsx } from "clsx";
 
 const NAV = [
-  { href: "/traces",   label: "Traces",   icon: GitBranch },
-  { href: "/insights", label: "Insights", icon: ShieldAlert },
-  { href: "/sources",  label: "Sources",  icon: Database },
+  { href: "/traces",         label: "Traces",   icon: GitBranch },
+  { href: "/insights",       label: "Insights", icon: ShieldAlert },
+  { href: "/sources",        label: "Sources",  icon: Database },
+  { href: "/settings/rules", label: "Settings", icon: Settings },
 ];
 
 function SyncDot({ lastSyncedAt }: { lastSyncedAt: string | null }) {

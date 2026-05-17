@@ -7,7 +7,8 @@ from datetime import datetime, timezone
 
 from sentinel_worker.main import app
 from sentinel_pipeline.db.clickhouse import fetch_trace_spans
-from sentinel_pipeline.db.postgres import get_session, InsightRow
+from sentinel_pipeline.db.postgres import get_session, InsightRow, RuleConfigRow
+from sqlalchemy import select
 from sentinel_pipeline.graph.builder import build_graph
 from sentinel_pipeline.models.span import NormalizedSpan, SpanKind, SpanStatus
 from sentinel_pipeline.models.insight import Tier
@@ -43,14 +44,23 @@ async def _process_trace(workspace_id: str, trace_id: str, tier: Tier) -> dict:
     # 2. Deserialise to NormalizedSpan
     spans = [_row_to_span(row) for row in raw_rows]
 
-    # 3. Build flow graph + run rules
+    # 3. Load workspace rule overrides
+    rule_overrides: dict[str, dict] = {}
+    async with get_session() as session:
+        cfg_result = await session.execute(
+            select(RuleConfigRow).where(RuleConfigRow.workspace_id == workspace_id)
+        )
+        for cfg in cfg_result.scalars().all():
+            rule_overrides[cfg.rule_id] = {"action": cfg.action, "severity": cfg.severity}
+
+    # 4. Build flow graph + run rules
     graph    = build_graph(spans)
-    insights = run_rules(graph, workspace_tier=tier)
+    insights = run_rules(graph, workspace_tier=tier, rule_overrides=rule_overrides)
 
     if not insights:
         return {"trace_id": trace_id, "insights": 0}
 
-    # 4. Persist insights (upsert by workspace_id + trace_id + rule_id)
+    # 5. Persist insights (upsert by workspace_id + trace_id + rule_id)
     async with get_session() as session:
         for insight in insights:
             row = InsightRow(

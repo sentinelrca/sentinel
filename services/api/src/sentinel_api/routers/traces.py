@@ -24,10 +24,13 @@ async def list_traces(
     workspace: WorkspaceRow = Depends(get_workspace),
 ) -> dict[str, Any]:
     async with get_session() as session:
+        _open_filter = (
+            InsightRow.workspace_id == workspace.id,
+            InsightRow.status == "open",
+        )
+
         count_result = await session.execute(
-            select(func.count(InsightRow.trace_id.distinct())).where(
-                InsightRow.workspace_id == workspace.id
-            )
+            select(func.count(InsightRow.trace_id.distinct())).where(*_open_filter)
         )
         total = count_result.scalar_one()
 
@@ -39,7 +42,7 @@ async def list_traces(
                 func.max(InsightRow.created_at).label("latest_insight_at"),
                 func.array_agg(InsightRow.severity).label("severities"),
             )
-            .where(InsightRow.workspace_id == workspace.id)
+            .where(*_open_filter)
             .group_by(InsightRow.trace_id)
             .order_by(func.max(InsightRow.created_at).desc())
             .limit(limit)
@@ -49,7 +52,7 @@ async def list_traces(
 
         severity_result = await session.execute(
             select(InsightRow.severity, func.count().label("cnt"))
-            .where(InsightRow.workspace_id == workspace.id)
+            .where(*_open_filter)
             .group_by(InsightRow.severity)
         )
         issues_by_severity = {row.severity: row.cnt for row in severity_result.all()}
@@ -105,6 +108,7 @@ async def get_trace_insights(
             .where(
                 InsightRow.workspace_id == workspace.id,
                 InsightRow.trace_id == trace_id,
+                InsightRow.status == "open",
             )
             .order_by(InsightRow.created_at.desc())
         )

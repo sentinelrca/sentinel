@@ -5,6 +5,8 @@ import FlowGraphCanvas from "@/components/flow-graph";
 import TimelineView from "@/components/timeline-view";
 import SpanDetailPanel from "@/components/span-detail-panel";
 import SeverityBadge from "@/components/severity-badge";
+import IssueActionMenu from "@/components/issue-action-menu";
+import { patchInsight, putRuleConfig } from "@/lib/api";
 import { clsx } from "clsx";
 import type { FlowGraph, FlowNode, Insight } from "@/lib/types";
 
@@ -14,9 +16,10 @@ interface Props {
   traceId: string;
 }
 
-export default function TraceDetailClient({ flow, insights, traceId }: Props) {
+export default function TraceDetailClient({ flow, insights: initialInsights, traceId }: Props) {
+  const [insights, setInsights] = useState<Insight[]>(initialInsights);
   const [selectedInsightId, setSelectedInsightId] = useState<string | null>(
-    insights[0]?.id ?? null
+    initialInsights[0]?.id ?? null
   );
   const [selectedSpan, setSelectedSpan] = useState<FlowNode | null>(null);
   const [activeTab, setActiveTab] = useState<"graph" | "timeline">("graph");
@@ -26,6 +29,48 @@ export default function TraceDetailClient({ flow, insights, traceId }: Props) {
 
   function handleSpanClick(span: FlowNode) {
     setSelectedSpan((prev) => (prev?.id === span.id ? null : span));
+  }
+
+  async function handleIgnoreInstance(id: string) {
+    const snapshot = insights;
+    let nextSelected = selectedInsightId;
+    setInsights((prev) => {
+      const next = prev.filter((i) => i.id !== id);
+      if (selectedInsightId === id) nextSelected = next[0]?.id ?? null;
+      return next;
+    });
+    setSelectedInsightId(nextSelected);
+    await patchInsight(id, { status: "ignored" }).catch(() => setInsights(snapshot));
+  }
+
+  async function handleIgnoreRule(ruleId: string) {
+    const snapshot = insights;
+    let nextSelected = selectedInsightId;
+    setInsights((prev) => {
+      const next = prev.filter((i) => i.rule_id !== ruleId);
+      if (prev.find((i) => i.id === selectedInsightId)?.rule_id === ruleId) {
+        nextSelected = next[0]?.id ?? null;
+      }
+      return next;
+    });
+    setSelectedInsightId(nextSelected);
+    await putRuleConfig(ruleId, { action: "DISABLED" }).catch(() => setInsights(snapshot));
+  }
+
+  async function handleChangeSeverity(id: string, severity: string, applyToAll: boolean) {
+    const insight = insights.find((i) => i.id === id);
+    if (!insight) return;
+    const snapshot = insights;
+
+    if (applyToAll) {
+      // Rule config affects future firings only — don't mutate existing insight severities
+      await putRuleConfig(insight.rule_id, { action: "OVERRIDE_SEVERITY", severity }).catch(
+        () => setInsights(snapshot)
+      );
+    } else {
+      setInsights((prev) => prev.map((i) => (i.id === id ? { ...i, severity } : i)));
+      await patchInsight(id, { severity }).catch(() => setInsights(snapshot));
+    }
   }
 
   return (
@@ -43,22 +88,30 @@ export default function TraceDetailClient({ flow, insights, traceId }: Props) {
             <p className="px-4 py-3 text-xs text-slate-400">No issues found.</p>
           ) : (
             insights.map((ins) => (
-              <button
+              <div
                 key={ins.id}
-                onClick={() => setSelectedInsightId(ins.id)}
                 className={clsx(
-                  "w-full px-4 py-2.5 text-left transition-colors",
-                  selectedInsightId === ins.id
-                    ? "bg-slate-100"
-                    : "hover:bg-slate-50"
+                  "group relative flex w-full items-start gap-1 px-3 py-2.5 text-left transition-colors cursor-pointer",
+                  selectedInsightId === ins.id ? "bg-slate-100" : "hover:bg-slate-50"
                 )}
+                onClick={() => setSelectedInsightId(ins.id)}
               >
-                <div className="flex items-center gap-2">
-                  <SeverityBadge severity={ins.severity} />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <SeverityBadge severity={ins.severity} />
+                  </div>
+                  <p className="mt-1 font-mono text-xs text-slate-700">{ins.rule_id}</p>
+                  <p className="mt-0.5 text-xs text-slate-500 line-clamp-2">{ins.title}</p>
                 </div>
-                <p className="mt-1 font-mono text-xs text-slate-700">{ins.rule_id}</p>
-                <p className="mt-0.5 text-xs text-slate-500 line-clamp-2">{ins.title}</p>
-              </button>
+                <IssueActionMenu
+                  insightId={ins.id}
+                  ruleId={ins.rule_id}
+                  currentSeverity={ins.severity}
+                  onIgnoreInstance={handleIgnoreInstance}
+                  onIgnoreRule={handleIgnoreRule}
+                  onChangeSeverity={handleChangeSeverity}
+                />
+              </div>
             ))
           )}
         </div>
