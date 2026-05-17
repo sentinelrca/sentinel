@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import uuid
 from datetime import datetime, timezone
 
 from sentinel_worker.main import app
@@ -15,7 +14,7 @@ from sentinel_pipeline.db.postgres import (
 )
 from sqlalchemy import select, delete
 from sentinel_pipeline.graph.builder import build_graph
-from sentinel_pipeline.models.span import NormalizedSpan, SpanKind, SpanStatus
+from sentinel_pipeline.models.span import NormalizedSpan
 from sentinel_pipeline.models.insight import Tier
 from sentinel_pipeline.rules.runner import run_rules
 from sentinel_worker.tasks.process_trace import _row_to_span

@@ -174,7 +174,7 @@ def fetch_spans_by_filter(
             conditions.append("start_time <= %(date_to)s")
             params["date_to"] = date_to
 
-        if trace_ids is not None:
+        if trace_ids:
             conditions.append("trace_id IN %(trace_ids)s")
             params["trace_ids"] = tuple(trace_ids)
 

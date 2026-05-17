@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import delete, select
 
@@ -71,14 +71,15 @@ async def create_project(
 @router.get("")
 async def list_projects(
     workspace: WorkspaceRow = Depends(get_workspace),
-) -> list[ProjectOut]:
+) -> dict:
     async with get_session() as session:
         result = await session.execute(
             select(ProjectRow).where(ProjectRow.workspace_id == workspace.id)
         )
         rows = result.scalars().all()
 
-    return [_project_to_out(r) for r in rows]
+    items = [_project_to_out(r) for r in rows]
+    return {"items": items, "total": len(items)}
 
 
 @router.get("/{project_id}")

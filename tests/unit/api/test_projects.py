@@ -151,7 +151,9 @@ async def test_list_projects_empty():
 
     app.dependency_overrides.clear()
     assert resp.status_code == 200
-    assert resp.json() == []
+    body = resp.json()
+    assert body["items"] == []
+    assert body["total"] == 0
 
 
 @pytest.mark.asyncio
@@ -165,9 +167,10 @@ async def test_list_projects_returns_rows():
 
     app.dependency_overrides.clear()
     body = resp.json()
-    assert len(body) == 2
-    assert body[0]["name"] == "My Project"
-    assert body[1]["name"] == "Second Project"
+    assert body["total"] == 2
+    assert len(body["items"]) == 2
+    assert body["items"][0]["name"] == "My Project"
+    assert body["items"][1]["name"] == "Second Project"
 
 
 # ---------------------------------------------------------------------------
@@ -349,3 +352,29 @@ async def test_get_project_insights_project_not_found():
 
     app.dependency_overrides.clear()
     assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Feed isolation — main traces/insights feeds must not leak project insights
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_list_traces_excludes_project_insights():
+    """GET /v1/traces must only count insights with project_id IS NULL."""
+    from sentinel_api.middleware.auth import get_workspace as _gw2
+
+    _FAKE_WS = WorkspaceRow(id="ws-1", name="test", api_key_hash="x", tier=0)
+    app.dependency_overrides[_gw2] = lambda: _FAKE_WS
+
+    # Simulate: no open continuous-sync insights (project insights exist but shouldn't appear)
+    from unittest.mock import patch as _patch
+    from tests.unit.api.test_traces import _mock_session_group, _patches
+
+    with _patches(groups=[]):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+            resp = await c.get("/v1/traces")
+
+    app.dependency_overrides.clear()
+    assert resp.status_code == 200
+    assert resp.json()["items"] == []
+    assert resp.json()["total"] == 0
