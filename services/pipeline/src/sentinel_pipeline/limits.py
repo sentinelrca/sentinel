@@ -17,4 +17,4 @@ try:
 
 except ImportError:
     def get_import_limits(tier: int) -> dict:  # type: ignore[misc]
-        return _FREE_LIMITS
+        return dict(_FREE_LIMITS)

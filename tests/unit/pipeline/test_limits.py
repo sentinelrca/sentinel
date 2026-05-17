@@ -4,8 +4,6 @@ from __future__ import annotations
 import sys
 from unittest.mock import MagicMock
 
-import pytest
-
 
 def _reload_limits_module():
     """Remove cached module so each test gets a clean import."""
@@ -17,7 +15,6 @@ def _reload_limits_module():
 def test_free_tier_limits_when_engine_absent():
     """When sentinel-engine is not installed, all tiers get free-tier limits."""
     _reload_limits_module()
-    # Remove sentinel_engine from sys.modules to simulate it not being installed
     sys.modules["sentinel_engine"] = None  # type: ignore[assignment]
     sys.modules["sentinel_engine.limits"] = None  # type: ignore[assignment]
 
@@ -28,6 +25,23 @@ def test_free_tier_limits_when_engine_absent():
             limits = get_import_limits(tier)
             assert limits["imports_per_week"] == 3
             assert limits["traces_per_import"] == 500
+    finally:
+        _reload_limits_module()
+
+
+def test_free_tier_limits_are_independent_copies():
+    """Each call returns a fresh dict — mutating one must not affect the next."""
+    _reload_limits_module()
+    sys.modules["sentinel_engine"] = None  # type: ignore[assignment]
+    sys.modules["sentinel_engine.limits"] = None  # type: ignore[assignment]
+
+    try:
+        from sentinel_pipeline.limits import get_import_limits
+
+        a = get_import_limits(0)
+        a["imports_per_week"] = 999
+        b = get_import_limits(0)
+        assert b["imports_per_week"] == 3
     finally:
         _reload_limits_module()
 
@@ -54,21 +68,5 @@ def test_engine_limits_used_when_engine_present():
         result = get_import_limits(1)
         assert result["imports_per_week"] is None
         mock_engine_limits.get_import_limits.assert_called_once_with(1)
-    finally:
-        _reload_limits_module()
-
-
-def test_free_limits_dict_shape():
-    """Free-tier limits dict has the expected keys."""
-    _reload_limits_module()
-    sys.modules["sentinel_engine"] = None  # type: ignore[assignment]
-    sys.modules["sentinel_engine.limits"] = None  # type: ignore[assignment]
-
-    try:
-        from sentinel_pipeline.limits import get_import_limits
-
-        limits = get_import_limits(0)
-        assert "imports_per_week" in limits
-        assert "traces_per_import" in limits
     finally:
         _reload_limits_module()
