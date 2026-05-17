@@ -12,6 +12,7 @@ dependencies = [
     "sentinel-connectors-langfuse",
     "sentinel-connectors-langsmith",
     "sentinel-api",
+    "sentinel-worker",
 ]
 
 [tool.uv.sources]
@@ -20,6 +21,7 @@ sentinel-connectors-base      = { path = "../connectors/_base",     editable = t
 sentinel-connectors-langfuse  = { path = "../connectors/langfuse",  editable = true }
 sentinel-connectors-langsmith = { path = "../connectors/langsmith", editable = true }
 sentinel-api                  = { path = "../services/api",         editable = true }
+sentinel-worker               = { path = "../services/worker",      editable = true }
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
