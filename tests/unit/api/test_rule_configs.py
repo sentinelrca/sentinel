@@ -190,13 +190,23 @@ async def test_put_rule_config_invalid_severity_returns_400():
 # DELETE /v1/rule-configs/{rule_id}
 # ---------------------------------------------------------------------------
 
+def _mock_session_delete(rowcount: int):
+    mock_session = AsyncMock()
+    result = MagicMock()
+    result.rowcount = rowcount
+    mock_session.execute = AsyncMock(return_value=result)
+    cm = MagicMock()
+    cm.__aenter__ = AsyncMock(return_value=mock_session)
+    cm.__aexit__ = AsyncMock(return_value=False)
+    return cm
+
+
 @pytest.mark.asyncio
 async def test_delete_rule_config_success():
     from sentinel_api.middleware.auth import get_workspace as _gw
 
-    existing = _cfg_row()
     app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
-    with patch("sentinel_api.routers.rule_configs.get_session", return_value=_mock_session_returning(existing)):
+    with patch("sentinel_api.routers.rule_configs.get_session", return_value=_mock_session_delete(1)):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             resp = await client.delete("/v1/rule-configs/agent_loop")
 
@@ -209,7 +219,7 @@ async def test_delete_rule_config_not_found_returns_404():
     from sentinel_api.middleware.auth import get_workspace as _gw
 
     app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
-    with patch("sentinel_api.routers.rule_configs.get_session", return_value=_mock_session_returning(None)):
+    with patch("sentinel_api.routers.rule_configs.get_session", return_value=_mock_session_delete(0)):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             resp = await client.delete("/v1/rule-configs/nonexistent")
 

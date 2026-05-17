@@ -32,41 +32,44 @@ export default function TraceDetailClient({ flow, insights: initialInsights, tra
   }
 
   async function handleIgnoreInstance(id: string) {
-    setInsights((prev) => prev.filter((i) => i.id !== id));
-    if (selectedInsightId === id) {
-      const remaining = insights.filter((i) => i.id !== id);
-      setSelectedInsightId(remaining[0]?.id ?? null);
-    }
-    await patchInsight(id, { status: "ignored" }).catch(() => {
-      setInsights(initialInsights); // revert on error
+    const snapshot = insights;
+    let nextSelected = selectedInsightId;
+    setInsights((prev) => {
+      const next = prev.filter((i) => i.id !== id);
+      if (selectedInsightId === id) nextSelected = next[0]?.id ?? null;
+      return next;
     });
+    setSelectedInsightId(nextSelected);
+    await patchInsight(id, { status: "ignored" }).catch(() => setInsights(snapshot));
   }
 
   async function handleIgnoreRule(ruleId: string) {
-    setInsights((prev) => prev.filter((i) => i.rule_id !== ruleId));
-    if (insights.find((i) => i.id === selectedInsightId)?.rule_id === ruleId) {
-      const remaining = insights.filter((i) => i.rule_id !== ruleId);
-      setSelectedInsightId(remaining[0]?.id ?? null);
-    }
-    await putRuleConfig(ruleId, { action: "DISABLED" }).catch(() => {
-      setInsights(initialInsights);
+    const snapshot = insights;
+    let nextSelected = selectedInsightId;
+    setInsights((prev) => {
+      const next = prev.filter((i) => i.rule_id !== ruleId);
+      if (prev.find((i) => i.id === selectedInsightId)?.rule_id === ruleId) {
+        nextSelected = next[0]?.id ?? null;
+      }
+      return next;
     });
+    setSelectedInsightId(nextSelected);
+    await putRuleConfig(ruleId, { action: "DISABLED" }).catch(() => setInsights(snapshot));
   }
 
   async function handleChangeSeverity(id: string, severity: string, applyToAll: boolean) {
     const insight = insights.find((i) => i.id === id);
     if (!insight) return;
+    const snapshot = insights;
 
     if (applyToAll) {
-      setInsights((prev) =>
-        prev.map((i) => (i.rule_id === insight.rule_id ? { ...i, severity } : i))
-      );
+      // Rule config affects future firings only — don't mutate existing insight severities
       await putRuleConfig(insight.rule_id, { action: "OVERRIDE_SEVERITY", severity }).catch(
-        () => setInsights(initialInsights)
+        () => setInsights(snapshot)
       );
     } else {
       setInsights((prev) => prev.map((i) => (i.id === id ? { ...i, severity } : i)));
-      await patchInsight(id, { severity }).catch(() => setInsights(initialInsights));
+      await patchInsight(id, { severity }).catch(() => setInsights(snapshot));
     }
   }
 

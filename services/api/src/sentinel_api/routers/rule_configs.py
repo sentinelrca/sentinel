@@ -80,19 +80,15 @@ async def delete_rule_config(
 ) -> None:
     async with get_session() as session:
         result = await session.execute(
-            select(RuleConfigRow).where(
+            delete(RuleConfigRow)
+            .where(
                 RuleConfigRow.workspace_id == workspace.id,
                 RuleConfigRow.rule_id == rule_id,
             )
+            .returning(RuleConfigRow.id)
         )
-        if result.scalar_one_or_none() is None:
+        if result.rowcount == 0:
             raise HTTPException(status_code=404, detail="Rule config not found")
-        await session.execute(
-            delete(RuleConfigRow).where(
-                RuleConfigRow.workspace_id == workspace.id,
-                RuleConfigRow.rule_id == rule_id,
-            )
-        )
 
 
 def _row_to_dict(r: RuleConfigRow) -> dict[str, Any]:

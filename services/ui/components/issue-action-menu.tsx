@@ -57,7 +57,10 @@ export default function IssueActionMenu({
     <div ref={ref} className="relative shrink-0">
       <button
         onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
-        className="rounded p-0.5 text-slate-400 opacity-0 group-hover:opacity-100 hover:bg-slate-200 hover:text-slate-600 transition-opacity"
+        className={clsx(
+          "rounded p-0.5 text-slate-400 hover:bg-slate-200 hover:text-slate-600 transition-opacity",
+          open ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+        )}
         title="Actions"
       >
         <MoreHorizontal size={14} />
@@ -118,7 +121,7 @@ export default function IssueActionMenu({
               className="rounded border-slate-300 text-indigo-600"
             />
             <span className="text-slate-600">
-              Apply to all <span className="font-mono">{ruleId}</span>
+              Apply to future <span className="font-mono">{ruleId}</span> firings
             </span>
           </label>
         </div>
