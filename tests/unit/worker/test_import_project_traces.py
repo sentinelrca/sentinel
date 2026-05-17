@@ -124,9 +124,6 @@ async def test_import_calls_pull_by_ids_when_trace_ids_in_filters():
 @pytest.mark.asyncio
 async def test_quota_exceeded_sets_error_status():
     """When imports_this_week >= limit, status → error and error key returned."""
-    # Project has been imported 3 times in the last 7 days
-    recent = datetime.now(timezone.utc) - timedelta(days=1)
-    existing_projects = [_make_project(last_imported_at=recent) for _ in range(3)]
     project = _make_project()
 
     with (
@@ -174,7 +171,7 @@ async def test_no_source_sets_error_status():
               return_value={"imports_per_week": None, "traces_per_import": None}),
         patch("sentinel_worker.tasks.import_project_traces.get_session") as mock_session_cm,
     ):
-        _setup_session_sequence(mock_session_cm, [(project, None, None)])
+        _setup_session_sequence(mock_session_cm, [(project, None)])
 
         from sentinel_worker.tasks.import_project_traces import _import_project_traces
         result = await _import_project_traces("proj-1", "ws-1", workspace_tier=0)
@@ -201,8 +198,8 @@ async def test_connector_pull_failure_sets_error_status():
         patch("sentinel_worker.tasks.import_project_traces.get_session") as mock_session_cm,
     ):
         _setup_session_sequence(mock_session_cm, [
-            (project, None, source),  # first session: load + mark importing
-            (project,),               # second session: set error
+            (project, source),  # quota unlimited → no count query; execute calls: project, source
+            (project,),         # second session: set error
         ])
 
         from sentinel_worker.tasks.import_project_traces import _import_project_traces
@@ -250,25 +247,7 @@ def _setup_session_sequence(mock_session_cm, call_data: list):
     call_data is a list of tuples; each tuple maps to one `async with get_session()` call.
     Items in each tuple are returned in order by successive execute() calls.
     """
-    sessions = []
-    for items in call_data:
-        session = _make_mock_session(items)
-        sessions.append(session)
-
-    # Cycle through sessions on repeated calls
-    call_iter = iter(sessions)
-
-    async def _cm():
-        try:
-            s = next(call_iter)
-        except StopIteration:
-            s = _make_mock_session(())
-        return s
-
-    mock_session_cm.return_value.__aenter__ = AsyncMock(side_effect=_cm)
-    mock_session_cm.return_value.__aexit__ = AsyncMock(return_value=False)
-
-    # Make it work as async context manager directly
+    sessions = [_make_mock_session(items) for items in call_data]
     mock_session_cm.side_effect = _build_async_cm_side_effect(sessions)
 
 
