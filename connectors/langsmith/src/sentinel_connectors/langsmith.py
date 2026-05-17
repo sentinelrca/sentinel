@@ -99,6 +99,104 @@ class LangSmithConnector(Connector):
             if not cursor or len(runs) < _PAGE_SIZE:
                 break
 
+    def pull_by_window(
+        self,
+        config: dict,
+        since: datetime,
+        until: datetime,
+        workspace_id: str,
+        limit: int = 500,
+    ) -> Iterator[list[NormalizedSpan]]:
+        """Fetch runs within [since, until], stopping after `limit` spans."""
+        client        = self._client(config)
+        store_content = config.get("store_content", False)
+        project_name  = config.get("project_name")
+        cursor: str | None = None
+        since_iso = since.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+        until_iso = until.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+        total_yielded = 0
+
+        while True:
+            params: dict = {
+                "limit":      _PAGE_SIZE,
+                "start_time": since_iso,
+                "end_time":   until_iso,
+            }
+            if project_name:
+                params["project_name"] = project_name
+            if cursor:
+                params["cursor"] = cursor
+
+            try:
+                resp = client.get("/api/v1/runs", params=params)
+                resp.raise_for_status()
+            except httpx.HTTPError as exc:
+                logger.error("LangSmith pull_by_window failed: %s", exc)
+                return
+
+            data = resp.json()
+            runs = data if isinstance(data, list) else data.get("runs", [])
+            if not runs:
+                break
+
+            batch = [
+                self._map_run(run, workspace_id, store_content)
+                for run in runs
+                if run.get("trace_id")
+            ]
+            if batch:
+                remaining = limit - total_yielded
+                batch = batch[:remaining]
+                yield batch
+                total_yielded += len(batch)
+
+            cursor = resp.headers.get("x-cursor") or None
+            if total_yielded >= limit or not cursor or len(runs) < _PAGE_SIZE:
+                break
+
+    def pull_by_ids(
+        self,
+        config: dict,
+        trace_ids: list[str],
+        workspace_id: str,
+    ) -> Iterator[list[NormalizedSpan]]:
+        """Fetch all runs for the given trace IDs, one trace at a time."""
+        client        = self._client(config)
+        store_content = config.get("store_content", False)
+
+        for trace_id in trace_ids:
+            cursor: str | None = None
+            trace_batch: list[NormalizedSpan] = []
+
+            while True:
+                params: dict = {"trace_id": trace_id, "limit": _PAGE_SIZE}
+                if cursor:
+                    params["cursor"] = cursor
+
+                try:
+                    resp = client.get("/api/v1/runs", params=params)
+                    resp.raise_for_status()
+                except httpx.HTTPError as exc:
+                    logger.error("LangSmith pull_by_ids failed for trace %s: %s", trace_id, exc)
+                    break
+
+                data = resp.json()
+                runs = data if isinstance(data, list) else data.get("runs", [])
+                if not runs:
+                    break
+
+                trace_batch.extend(
+                    self._map_run(run, workspace_id, store_content)
+                    for run in runs
+                    if run.get("trace_id")
+                )
+                cursor = resp.headers.get("x-cursor") or None
+                if not cursor or len(runs) < _PAGE_SIZE:
+                    break
+
+            if trace_batch:
+                yield trace_batch
+
     # ------------------------------------------------------------------
 
     def _client(self, config: dict) -> httpx.Client:

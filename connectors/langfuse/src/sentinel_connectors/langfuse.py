@@ -98,6 +98,100 @@ class LangfuseConnector(Connector):
                 break
             page += 1
 
+    def pull_by_window(
+        self,
+        config: dict,
+        since: datetime,
+        until: datetime,
+        workspace_id: str,
+        limit: int = 500,
+    ) -> Iterator[list[NormalizedSpan]]:
+        """Fetch observations within [since, until], stopping after `limit` spans."""
+        client        = self._client(config)
+        store_content = config.get("store_content", False)
+        page          = 1
+        total_yielded = 0
+
+        while True:
+            try:
+                resp = client.get(
+                    "/api/public/observations",
+                    params={
+                        "page":          page,
+                        "limit":         _PAGE_SIZE,
+                        "fromStartTime": since.isoformat(),
+                        "toStartTime":   until.isoformat(),
+                    },
+                )
+                resp.raise_for_status()
+            except httpx.HTTPError as exc:
+                logger.error("Langfuse pull_by_window failed on page %d: %s", page, exc)
+                return
+
+            observations = resp.json().get("data", [])
+            if not observations:
+                break
+
+            batch = [
+                self._map_observation(obs, workspace_id, store_content)
+                for obs in observations
+                if obs.get("traceId")
+            ]
+            if batch:
+                remaining = limit - total_yielded
+                batch = batch[:remaining]
+                yield batch
+                total_yielded += len(batch)
+
+            if total_yielded >= limit or len(observations) < _PAGE_SIZE:
+                break
+            page += 1  # only reached when page was full and limit not yet hit
+
+    def pull_by_ids(
+        self,
+        config: dict,
+        trace_ids: list[str],
+        workspace_id: str,
+    ) -> Iterator[list[NormalizedSpan]]:
+        """Fetch all observations for the given trace IDs, one trace at a time."""
+        client        = self._client(config)
+        store_content = config.get("store_content", False)
+
+        for trace_id in trace_ids:
+            page = 1
+            trace_batch: list[NormalizedSpan] = []
+
+            while True:
+                try:
+                    resp = client.get(
+                        "/api/public/observations",
+                        params={
+                            "traceId": trace_id,
+                            "page":    page,
+                            "limit":   _PAGE_SIZE,
+                        },
+                    )
+                    resp.raise_for_status()
+                except httpx.HTTPError as exc:
+                    logger.error("Langfuse pull_by_ids failed for trace %s: %s", trace_id, exc)
+                    break
+
+                observations = resp.json().get("data", [])
+                if not observations:
+                    break
+
+                trace_batch.extend(
+                    self._map_observation(obs, workspace_id, store_content)
+                    for obs in observations
+                    if obs.get("traceId")
+                )
+                if len(observations) < _PAGE_SIZE:
+                    break
+                page += 1
+
+            if trace_batch:
+                yield trace_batch
+
     # ------------------------------------------------------------------
     # Private helpers
     # ------------------------------------------------------------------

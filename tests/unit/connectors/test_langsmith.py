@@ -286,3 +286,116 @@ def test_store_content_true_includes_inputs_and_outputs():
     assert span.attributes["langsmith.outputs"] == {"text": "world"}
     # structural attributes must still be present
     assert span.attributes["langsmith.run_type"] == "llm"
+
+
+# ---------------------------------------------------------------------------
+# pull_by_window
+# ---------------------------------------------------------------------------
+
+_UNTIL = datetime(2026, 1, 2, tzinfo=timezone.utc)
+
+
+@respx.mock
+def test_pull_by_window_returns_spans_in_range():
+    respx.get("https://api.smith.langchain.com/api/v1/runs").mock(
+        return_value=Response(200, json=[_RUN_LLM])
+    )
+    batches = list(connector.pull_by_window(_CONFIG, _SINCE, _UNTIL, _WORKSPACE))
+    assert len(batches) == 1
+    assert batches[0][0].span_id == "run-001"
+
+
+@respx.mock
+def test_pull_by_window_sends_correct_time_params():
+    """start_time and end_time must be sent with the correct formatted values."""
+    route = respx.get("https://api.smith.langchain.com/api/v1/runs").mock(
+        return_value=Response(200, json=[])
+    )
+    list(connector.pull_by_window(_CONFIG, _SINCE, _UNTIL, _WORKSPACE))
+    assert route.called
+    sent_params = dict(route.calls[0].request.url.params)
+    since_iso = _SINCE.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+    until_iso = _UNTIL.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+    assert sent_params["start_time"] == since_iso
+    assert sent_params["end_time"] == until_iso
+
+
+@respx.mock
+def test_pull_by_window_respects_limit():
+    """Should stop after `limit` spans even if the page is full."""
+    full_page = [{**_RUN_LLM, "id": f"run-{i}"} for i in range(100)]
+    respx.get("https://api.smith.langchain.com/api/v1/runs").mock(
+        return_value=Response(200, json=full_page, headers={"x-cursor": "next"})
+    )
+    batches = list(connector.pull_by_window(_CONFIG, _SINCE, _UNTIL, _WORKSPACE, limit=30))
+    total = sum(len(b) for b in batches)
+    assert total == 30
+
+
+@respx.mock
+def test_pull_by_window_empty_response():
+    respx.get("https://api.smith.langchain.com/api/v1/runs").mock(
+        return_value=Response(200, json=[])
+    )
+    assert list(connector.pull_by_window(_CONFIG, _SINCE, _UNTIL, _WORKSPACE)) == []
+
+
+@respx.mock
+def test_pull_by_window_stops_on_http_error():
+    respx.get("https://api.smith.langchain.com/api/v1/runs").mock(
+        return_value=Response(500, text="error")
+    )
+    assert list(connector.pull_by_window(_CONFIG, _SINCE, _UNTIL, _WORKSPACE)) == []
+
+
+# ---------------------------------------------------------------------------
+# pull_by_ids
+# ---------------------------------------------------------------------------
+
+@respx.mock
+def test_pull_by_ids_fetches_per_trace():
+    """One batch per trace ID that has runs."""
+    respx.get("https://api.smith.langchain.com/api/v1/runs").mock(
+        return_value=Response(200, json=[_RUN_LLM])
+    )
+    batches = list(connector.pull_by_ids(_CONFIG, ["trace-abc", "trace-xyz"], _WORKSPACE))
+    assert len(batches) == 2
+
+
+@respx.mock
+def test_pull_by_ids_skips_empty_trace():
+    call_count = 0
+
+    def _side(request):
+        nonlocal call_count
+        call_count += 1
+        return Response(200, json=[_RUN_LLM] if call_count == 1 else [])
+
+    respx.get("https://api.smith.langchain.com/api/v1/runs").mock(side_effect=_side)
+    batches = list(connector.pull_by_ids(_CONFIG, ["trace-abc", "trace-empty"], _WORKSPACE))
+    assert len(batches) == 1
+
+
+@respx.mock
+def test_pull_by_ids_empty_trace_list():
+    batches = list(connector.pull_by_ids(_CONFIG, [], _WORKSPACE))
+    assert batches == []
+
+
+@respx.mock
+def test_pull_by_ids_http_error_skips_trace():
+    """An HTTP error on one trace should not abort the whole iterator."""
+    call_count = 0
+
+    def _side(request):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return Response(500, text="error")
+        return Response(200, json=[_RUN_LLM])
+
+    respx.get("https://api.smith.langchain.com/api/v1/runs").mock(side_effect=_side)
+    batches = list(connector.pull_by_ids(_CONFIG, ["trace-bad", "trace-good"], _WORKSPACE))
+    # trace-bad errors → skipped; trace-good succeeds → 1 batch with 1 span
+    assert len(batches) == 1
+    assert len(batches[0]) == 1
