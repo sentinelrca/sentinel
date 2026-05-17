@@ -16,6 +16,7 @@ dependencies = [
     "sentinel-connectors-langfuse",
     "sentinel-connectors-langsmith",
     "clickhouse-driver>=0.2",
+    "celery[redis]>=5.3",
 ]
 
 [tool.uv.sources]
