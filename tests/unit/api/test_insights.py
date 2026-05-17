@@ -211,3 +211,87 @@ async def test_list_insights_pagination_params():
     body = resp.json()
     assert body["limit"] == 10
     assert body["offset"] == 20
+
+
+# ---------------------------------------------------------------------------
+# PATCH /v1/insights/{id}
+# ---------------------------------------------------------------------------
+
+def _mock_session_patch(row):
+    mock_session = AsyncMock()
+    result = MagicMock()
+    result.scalar_one_or_none.return_value = row
+    mock_session.execute = AsyncMock(return_value=result)
+    mock_session.flush = AsyncMock()
+    mock_session.refresh = AsyncMock()
+    cm = MagicMock()
+    cm.__aenter__ = AsyncMock(return_value=mock_session)
+    cm.__aexit__ = AsyncMock(return_value=False)
+    return cm
+
+
+@pytest.mark.asyncio
+async def test_patch_insight_status_ignored():
+    from sentinel_api.middleware.auth import get_workspace as _gw
+
+    row = _insight_row(status="open")
+    app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
+    with patch("sentinel_api.routers.insights.get_session", return_value=_mock_session_patch(row)):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            resp = await client.patch("/v1/insights/ins-1", json={"status": "ignored"})
+
+    app.dependency_overrides.clear()
+    assert resp.status_code == 200
+    assert row.status == "ignored"
+
+
+@pytest.mark.asyncio
+async def test_patch_insight_severity_override():
+    from sentinel_api.middleware.auth import get_workspace as _gw
+
+    row = _insight_row(severity="high")
+    app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
+    with patch("sentinel_api.routers.insights.get_session", return_value=_mock_session_patch(row)):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            resp = await client.patch("/v1/insights/ins-1", json={"severity": "warning"})
+
+    app.dependency_overrides.clear()
+    assert resp.status_code == 200
+    assert row.severity == "warning"
+
+
+@pytest.mark.asyncio
+async def test_patch_insight_invalid_status_returns_400():
+    from sentinel_api.middleware.auth import get_workspace as _gw
+
+    app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        resp = await client.patch("/v1/insights/ins-1", json={"status": "resolved"})
+
+    app.dependency_overrides.clear()
+    assert resp.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_patch_insight_invalid_severity_returns_400():
+    from sentinel_api.middleware.auth import get_workspace as _gw
+
+    app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        resp = await client.patch("/v1/insights/ins-1", json={"severity": "extreme"})
+
+    app.dependency_overrides.clear()
+    assert resp.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_patch_insight_not_found_returns_404():
+    from sentinel_api.middleware.auth import get_workspace as _gw
+
+    app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
+    with patch("sentinel_api.routers.insights.get_session", return_value=_mock_session_patch(None)):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            resp = await client.patch("/v1/insights/missing", json={"status": "ignored"})
+
+    app.dependency_overrides.clear()
+    assert resp.status_code == 404

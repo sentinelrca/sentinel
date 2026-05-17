@@ -98,3 +98,15 @@ export interface Source {
 export interface SourceListResponse {
   items: Source[];
 }
+
+export interface RuleConfig {
+  rule_id: string;
+  action: "DISABLED" | "OVERRIDE_SEVERITY";
+  severity: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface RuleConfigListResponse {
+  items: RuleConfig[];
+}

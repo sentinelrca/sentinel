@@ -2,6 +2,8 @@ import type {
   FlowGraph,
   Insight,
   InsightListResponse,
+  RuleConfig,
+  RuleConfigListResponse,
   Source,
   SourceListResponse,
   TraceInsightsResponse,
@@ -93,4 +95,32 @@ export async function createSource(body: {
 
 export async function deleteSource(id: string): Promise<void> {
   await apiFetch<unknown>(`/v1/sources/${id}`, { method: "DELETE" });
+}
+
+export async function patchInsight(
+  id: string,
+  patch: { status?: string; severity?: string },
+): Promise<Insight> {
+  return apiFetch<Insight>(`/v1/insights/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+}
+
+export async function getRuleConfigs(): Promise<RuleConfigListResponse> {
+  return apiFetch<RuleConfigListResponse>("/v1/rule-configs");
+}
+
+export async function putRuleConfig(
+  ruleId: string,
+  config: { action: string; severity?: string | null },
+): Promise<RuleConfig> {
+  return apiFetch<RuleConfig>(`/v1/rule-configs/${ruleId}`, {
+    method: "PUT",
+    body: JSON.stringify(config),
+  });
+}
+
+export async function deleteRuleConfig(ruleId: string): Promise<void> {
+  await apiFetch<unknown>(`/v1/rule-configs/${ruleId}`, { method: "DELETE" });
 }
