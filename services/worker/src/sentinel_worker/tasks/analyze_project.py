@@ -116,7 +116,10 @@ async def _analyze_project(project_id: str, workspace_id: str, tier: Tier) -> di
             ))
 
         project_result = await session.execute(
-            select(ProjectRow).where(ProjectRow.id == project_id)
+            select(ProjectRow).where(
+                ProjectRow.id == project_id,
+                ProjectRow.workspace_id == workspace_id,
+            )
         )
         project_row = project_result.scalar_one_or_none()
         if project_row is not None:
