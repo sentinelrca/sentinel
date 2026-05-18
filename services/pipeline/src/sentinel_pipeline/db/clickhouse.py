@@ -257,6 +257,59 @@ def delete_project_spans(project_id: str, workspace_id: str) -> None:
         logger.exception("Failed to delete project_spans for project %s", project_id)
 
 
+def fetch_project_trace_spans(project_id: str, trace_id: str, workspace_id: str) -> list[dict]:
+    """Fetch spans for a single trace from a project snapshot."""
+    try:
+        client = _get_client()
+        rows = client.execute(
+            "SELECT project_id, trace_id, span_id, parent_span_id, workspace_id, "
+            "name, kind, status, start_time, end_time, model, agent_name, "
+            "input_tokens, output_tokens, retry_count, error_message, attributes_json "
+            "FROM project_spans "
+            "WHERE project_id = %(project_id)s AND trace_id = %(trace_id)s "
+            "AND workspace_id = %(workspace_id)s "
+            "ORDER BY start_time",
+            {"project_id": project_id, "trace_id": trace_id, "workspace_id": workspace_id},
+        )
+        columns = [
+            "project_id", "trace_id", "span_id", "parent_span_id", "workspace_id",
+            "name", "kind", "status", "start_time", "end_time",
+            "model", "agent_name", "input_tokens", "output_tokens",
+            "retry_count", "error_message", "attributes_json",
+        ]
+        return [dict(zip(columns, row)) for row in rows]
+    except Exception:
+        logger.exception("Failed to fetch project trace spans for project %s trace %s", project_id, trace_id)
+        return []
+
+
+def fetch_project_spans_stats_batch(
+    project_id: str, trace_ids: list[str], workspace_id: str
+) -> dict[str, dict]:
+    """Return span stats for project traces keyed by trace_id: span_count, llm_calls, total_ms."""
+    if not trace_ids:
+        return {}
+    try:
+        client = _get_client()
+        rows = client.execute(
+            "SELECT trace_id, "
+            "  count() AS span_count, "
+            "  countIf(kind = 'llm_call') AS llm_calls, "
+            "  dateDiff('millisecond', min(start_time), max(end_time)) AS total_ms "
+            "FROM project_spans "
+            "WHERE project_id = %(pid)s AND workspace_id = %(ws)s AND trace_id IN %(ids)s "
+            "GROUP BY trace_id",
+            {"pid": project_id, "ws": workspace_id, "ids": tuple(trace_ids)},
+        )
+        return {
+            row[0]: {"span_count": row[1], "llm_calls": row[2], "total_ms": row[3]}
+            for row in rows
+        }
+    except Exception:
+        logger.exception("Failed to fetch project span stats batch for project %s", project_id)
+        return {}
+
+
 def fetch_spans_by_filter(
     workspace_id: str,
     date_from: datetime | None = None,

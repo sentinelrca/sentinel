@@ -9,6 +9,7 @@ import type {
   RuleConfigListResponse,
   Source,
   SourceListResponse,
+  TraceSummary,
   TraceInsightsResponse,
   TraceListResponse,
 } from "./types";
@@ -60,8 +61,9 @@ export async function getInsight(id: string): Promise<Insight> {
   return apiFetch<Insight>(`/v1/insights/${id}`);
 }
 
-export async function getFlow(traceId: string): Promise<FlowGraph> {
-  return apiFetch<FlowGraph>(`/v1/flows/${traceId}`);
+export async function getFlow(traceId: string, projectId?: string): Promise<FlowGraph> {
+  const qs = projectId ? `?project_id=${encodeURIComponent(projectId)}` : "";
+  return apiFetch<FlowGraph>(`/v1/flows/${traceId}${qs}`);
 }
 
 export interface TraceFilters {
@@ -162,4 +164,12 @@ export async function analyzeProject(projectId: string): Promise<{ task_id: stri
 
 export async function getProjectInsights(projectId: string): Promise<InsightListResponse> {
   return apiFetch<InsightListResponse>(`/v1/projects/${projectId}/insights`);
+}
+
+export async function getProjectTraces(projectId: string): Promise<{ items: TraceSummary[]; total: number }> {
+  return apiFetch<{ items: TraceSummary[]; total: number }>(`/v1/projects/${projectId}/traces`);
+}
+
+export async function listProjects(): Promise<ProjectsResponse> {
+  return apiFetch<ProjectsResponse>("/v1/projects");
 }

@@ -165,13 +165,14 @@ def test_pull_paginates_multiple_pages():
 
 
 @respx.mock
-def test_pull_stops_on_http_error():
-    """HTTP error should not raise — connector logs and stops iteration."""
+def test_pull_raises_on_http_error():
+    """HTTP errors propagate so the caller (worker task) can handle retry/failure."""
+    import httpx
     respx.get("https://cloud.langfuse.com/api/public/observations").mock(
         return_value=Response(500, text="Internal Server Error")
     )
-    batches = list(connector.pull(_CONFIG, _SINCE, _WORKSPACE))
-    assert batches == []
+    with pytest.raises(httpx.HTTPStatusError):
+        list(connector.pull(_CONFIG, _SINCE, _WORKSPACE))
 
 
 @respx.mock
@@ -291,11 +292,13 @@ def test_pull_by_window_empty_response():
 
 
 @respx.mock
-def test_pull_by_window_stops_on_http_error():
+def test_pull_by_window_raises_on_http_error():
+    import httpx
     respx.get("https://cloud.langfuse.com/api/public/observations").mock(
         return_value=Response(500, text="error")
     )
-    assert list(connector.pull_by_window(_CONFIG, _SINCE, _UNTIL, _WORKSPACE)) == []
+    with pytest.raises(httpx.HTTPStatusError):
+        list(connector.pull_by_window(_CONFIG, _SINCE, _UNTIL, _WORKSPACE))
 
 
 # ---------------------------------------------------------------------------
@@ -337,19 +340,11 @@ def test_pull_by_ids_empty_trace_list():
 
 
 @respx.mock
-def test_pull_by_ids_http_error_skips_trace():
-    """An HTTP error on one trace should not abort the whole iterator."""
-    call_count = 0
-
-    def _side(request):
-        nonlocal call_count
-        call_count += 1
-        if call_count == 1:
-            return Response(500, text="error")
-        return Response(200, json=_page_response([_OBS_LLM], total=1))
-
-    respx.get("https://cloud.langfuse.com/api/public/observations").mock(side_effect=_side)
-    batches = list(connector.pull_by_ids(_CONFIG, ["trace-bad", "trace-good"], _WORKSPACE))
-    # trace-bad errors → skipped; trace-good succeeds → 1 batch with 1 span
-    assert len(batches) == 1
-    assert len(batches[0]) == 1
+def test_pull_by_ids_raises_on_http_error():
+    """HTTP error on any trace aborts the iterator and propagates to the caller."""
+    import httpx
+    respx.get("https://cloud.langfuse.com/api/public/observations").mock(
+        return_value=Response(500, text="error")
+    )
+    with pytest.raises(httpx.HTTPStatusError):
+        list(connector.pull_by_ids(_CONFIG, ["trace-bad"], _WORKSPACE))

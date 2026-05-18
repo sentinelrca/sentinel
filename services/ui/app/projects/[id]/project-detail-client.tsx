@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { Download, RefreshCw } from "lucide-react";
-import InsightCard from "@/components/insight-card";
-import { importProject, analyzeProject, getProject } from "@/lib/api";
+import { importProject, analyzeProject, getProject, getProjectTraces } from "@/lib/api";
 import { formatDistanceToNow } from "@/lib/date";
-import type { Insight, Project } from "@/lib/types";
+import type { Project, TraceSummary } from "@/lib/types";
+import TraceCard from "@/components/trace-card";
 
 const POLL_INTERVAL_MS = 3000;
 
@@ -15,7 +16,7 @@ interface Props {
   traceCount: number;
   importCount: number;
   lastAnalyzedAt: string | null;
-  initialInsights: Insight[];
+  initialTraces: TraceSummary[];
 }
 
 export default function ProjectDetailClient({
@@ -24,29 +25,42 @@ export default function ProjectDetailClient({
   traceCount: initialTraceCount,
   importCount: initialImportCount,
   lastAnalyzedAt: initialLastAnalyzedAt,
-  initialInsights,
+  initialTraces,
 }: Props) {
+  const router = useRouter();
   const [status, setStatus] = useState(initialStatus);
   const [traceCount, setTraceCount] = useState(initialTraceCount);
   const [importCount, setImportCount] = useState(initialImportCount);
   const [lastAnalyzedAt, setLastAnalyzedAt] = useState(initialLastAnalyzedAt);
+  const [traces, setTraces] = useState<TraceSummary[]>(initialTraces);
   const [importing, setImporting] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
-  const [analyzeQueued, setAnalyzeQueued] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const prevLastAnalyzedAt = useRef(initialLastAnalyzedAt);
 
-  // Poll project status while importing so the UI stays in sync with the
-  // background task — handles both "stay on page" and "navigate away and back".
+  // Poll while importing or analyzing to keep the UI in sync with the background task.
+  // When analysis completes (last_analyzed_at changes), re-fetch the trace list.
   useEffect(() => {
-    if (status !== "importing") return;
+    if (status !== "importing" && status !== "analyzing") return;
 
     const id = setInterval(async () => {
       try {
         const project = await getProject(projectId);
+        const prevAnalyzed = prevLastAnalyzedAt.current;
         setStatus(project.status);
         setTraceCount(project.trace_count);
         setImportCount(project.import_count);
         setLastAnalyzedAt(project.last_analyzed_at);
+        prevLastAnalyzedAt.current = project.last_analyzed_at;
+
+        // When analysis completes, reload the trace-grouped insights
+        if (
+          project.status === "ready" &&
+          project.last_analyzed_at !== prevAnalyzed
+        ) {
+          const traceData = await getProjectTraces(projectId);
+          setTraces(traceData.items);
+        }
       } catch {
         // ignore transient poll errors — keep polling
       }
@@ -73,7 +87,7 @@ export default function ProjectDetailClient({
     setAnalyzing(true);
     try {
       await analyzeProject(projectId);
-      setAnalyzeQueued(true);
+      setStatus("analyzing");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to start analysis");
     } finally {
@@ -93,6 +107,11 @@ export default function ProjectDetailClient({
                 Importing traces — this may take a moment…
               </span>
             )}
+            {status === "analyzing" && (
+              <span className="text-indigo-600">
+                Analyzing traces — running rules on your snapshot…
+              </span>
+            )}
             {status === "pending" && (
               <span>Import traces from your source to enable analysis</span>
             )}
@@ -100,9 +119,7 @@ export default function ProjectDetailClient({
               <span>
                 {traceCount} trace{traceCount !== 1 ? "s" : ""} imported
                 {importCount > 1 && ` · ${importCount} imports total`}
-                {analyzeQueued
-                  ? " · Analysis queued — refresh in a moment"
-                  : lastAnalyzedAt
+                {lastAnalyzedAt
                   ? ` · Last analyzed ${formatDistanceToNow(lastAnalyzedAt)}`
                   : " · Not yet analyzed"}
               </span>
@@ -142,6 +159,13 @@ export default function ProjectDetailClient({
                 Importing…
               </span>
             )}
+
+            {status === "analyzing" && (
+              <span className="flex items-center gap-2 rounded-md bg-indigo-50 px-3.5 py-2 text-sm font-medium text-indigo-600">
+                <RefreshCw size={14} className="animate-spin" />
+                Analyzing…
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -152,20 +176,40 @@ export default function ProjectDetailClient({
         </div>
       )}
 
-      {status !== "ready" && !analyzeQueued ? (
+      {/* Traces panel */}
+      {status === "pending" && (
         <div className="rounded-lg border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
-          {status === "pending" && "Import traces first, then run analysis to see insights."}
-          {status === "importing" && "Waiting for import to complete…"}
-          {status === "error" && "Fix the import error above to proceed."}
+          Import traces first, then run analysis to see insights.
         </div>
-      ) : initialInsights.length === 0 ? (
+      )}
+      {status === "importing" && (
+        <div className="rounded-lg border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
+          Waiting for import to complete…
+        </div>
+      )}
+      {status === "analyzing" && (
+        <div className="rounded-lg border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
+          Running analysis — results will appear here when complete.
+        </div>
+      )}
+      {status === "error" && (
+        <div className="rounded-lg border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
+          Fix the import error above to proceed.
+        </div>
+      )}
+      {status === "ready" && traces.length === 0 && (
         <div className="rounded-lg border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
           No insights yet. Click &ldquo;Analyze&rdquo; to run analysis on this project.
         </div>
-      ) : (
+      )}
+      {status === "ready" && traces.length > 0 && (
         <div className="space-y-3">
-          {initialInsights.map((insight) => (
-            <InsightCard key={insight.id} insight={insight} />
+          {traces.map((trace) => (
+            <TraceCard
+              key={trace.trace_id}
+              trace={trace}
+              projectId={projectId}
+            />
           ))}
         </div>
       )}
