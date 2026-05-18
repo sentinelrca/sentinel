@@ -79,8 +79,9 @@ export async function getTraces(filters: TraceFilters = {}): Promise<TraceListRe
   return apiFetch<TraceListResponse>(`/v1/traces${qs ? `?${qs}` : ""}`);
 }
 
-export async function getTraceInsights(traceId: string): Promise<TraceInsightsResponse> {
-  return apiFetch<TraceInsightsResponse>(`/v1/traces/${traceId}/insights`);
+export async function getTraceInsights(traceId: string, projectId?: string): Promise<TraceInsightsResponse> {
+  const qs = projectId ? `?project_id=${encodeURIComponent(projectId)}` : "";
+  return apiFetch<TraceInsightsResponse>(`/v1/traces/${traceId}/insights${qs}`);
 }
 
 export async function getSources(): Promise<SourceListResponse> {

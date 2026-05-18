@@ -101,16 +101,23 @@ async def list_traces(
 @router.get("/{trace_id}/insights")
 async def get_trace_insights(
     trace_id: str,
+    project_id: str | None = Query(None),
     workspace: WorkspaceRow = Depends(get_workspace),
 ) -> dict[str, Any]:
+    filters = [
+        InsightRow.workspace_id == workspace.id,
+        InsightRow.trace_id == trace_id,
+        InsightRow.status == "open",
+    ]
+    if project_id is not None:
+        filters.append(InsightRow.project_id == project_id)
+    else:
+        filters.append(InsightRow.project_id == None)
+
     async with get_session() as session:
         rows_result = await session.execute(
             select(InsightRow)
-            .where(
-                InsightRow.workspace_id == workspace.id,
-                InsightRow.trace_id == trace_id,
-                InsightRow.status == "open",
-            )
+            .where(*filters)
             .order_by(InsightRow.created_at.desc())
         )
         rows = rows_result.scalars().all()

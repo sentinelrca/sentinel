@@ -1,4 +1,4 @@
-import { getFlow, getTraceInsights, getProjectInsights } from "@/lib/api";
+import { getFlow, getTraceInsights } from "@/lib/api";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import TraceDetailClient from "./trace-detail-client";
@@ -12,10 +12,9 @@ export default async function TraceDetailPage({ params, searchParams }: Props) {
   const { trace_id } = params;
   const projectId = searchParams.project_id;
 
-  // When viewing a project trace, fetch flow from project_spans and insights from the project
   const [flowResult, insightsResult] = await Promise.allSettled([
     getFlow(trace_id, projectId),
-    projectId ? getProjectInsights(projectId) : getTraceInsights(trace_id),
+    getTraceInsights(trace_id, projectId),
   ]);
 
   const flow = flowResult.status === "fulfilled" ? flowResult.value : null;
@@ -24,11 +23,7 @@ export default async function TraceDetailPage({ params, searchParams }: Props) {
     ? (insightsResult.reason instanceof Error ? insightsResult.reason.message : "Failed to load insights")
     : null;
 
-  // For project mode, filter to only this trace's insights
-  const allInsights = insightsData?.items ?? [];
-  const insights = projectId
-    ? allInsights.filter((i) => i.trace_id === trace_id)
-    : allInsights;
+  const insights = insightsData?.items ?? [];
 
   const backHref = projectId ? `/projects/${projectId}` : "/traces";
   const backLabel = projectId ? "Project" : "Traces";

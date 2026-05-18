@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
 import { Download, RefreshCw } from "lucide-react";
 import { importProject, analyzeProject, getProject, getProjectTraces } from "@/lib/api";
 import { formatDistanceToNow } from "@/lib/date";
@@ -27,7 +26,6 @@ export default function ProjectDetailClient({
   lastAnalyzedAt: initialLastAnalyzedAt,
   initialTraces,
 }: Props) {
-  const router = useRouter();
   const [status, setStatus] = useState(initialStatus);
   const [traceCount, setTraceCount] = useState(initialTraceCount);
   const [importCount, setImportCount] = useState(initialImportCount);

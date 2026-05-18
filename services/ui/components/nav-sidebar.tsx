@@ -126,26 +126,18 @@ export default function NavSidebar({ lastSyncedAt, projects = [] }: Props) {
 
         {/* Settings */}
         <div className="space-y-0.5">
-          {[{ href: "/settings/rules", label: "Settings", icon: Settings }].map(
-            ({ href, label, icon: Icon }) => {
-              const active = pathname === href || pathname.startsWith(href + "/");
-              return (
-                <Link
-                  key={href}
-                  href={href}
-                  className={clsx(
-                    "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors",
-                    active
-                      ? "bg-slate-700 text-white"
-                      : "hover:bg-slate-800 hover:text-slate-200"
-                  )}
-                >
-                  <Icon size={16} />
-                  {label}
-                </Link>
-              );
-            }
-          )}
+          <Link
+            href="/settings/rules"
+            className={clsx(
+              "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors",
+              pathname === "/settings/rules" || pathname.startsWith("/settings/rules/")
+                ? "bg-slate-700 text-white"
+                : "hover:bg-slate-800 hover:text-slate-200"
+            )}
+          >
+            <Settings size={16} />
+            Settings
+          </Link>
         </div>
       </nav>
 
