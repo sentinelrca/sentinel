@@ -264,6 +264,23 @@ async def test_delete_project_not_found_returns_404():
     assert resp.status_code == 404
 
 
+@pytest.mark.asyncio
+async def test_delete_project_cascades_to_clickhouse():
+    """DELETE must trigger ClickHouse cleanup as a background task."""
+    app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
+
+    with (
+        patch("sentinel_api.routers.projects.get_session", return_value=_mock_session_delete(1)),
+        patch("sentinel_api.routers.projects.delete_project_spans") as mock_ch_delete,
+    ):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+            resp = await c.delete("/v1/projects/proj-1")
+
+    app.dependency_overrides.clear()
+    assert resp.status_code == 204
+    mock_ch_delete.assert_called_once_with("proj-1", "ws-1")
+
+
 # ---------------------------------------------------------------------------
 # POST /v1/projects/{project_id}/analyze
 # ---------------------------------------------------------------------------
@@ -300,6 +317,96 @@ async def test_analyze_project_not_found_returns_404():
 
     app.dependency_overrides.clear()
     assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# POST /v1/projects/{project_id}/import
+# ---------------------------------------------------------------------------
+
+def _mock_session_import(project_row, import_count=None):
+    """Session with 1 or 2 execute calls: project lookup + optional quota count."""
+    session = AsyncMock()
+    values = [project_row] if import_count is None else [project_row, import_count]
+    value_iter = iter(values)
+
+    def _exec(*_, **__):
+        value = next(value_iter, None)
+        r = MagicMock()
+        r.scalar_one_or_none.return_value = value
+        r.scalar_one.return_value = value
+        return r
+
+    session.execute = AsyncMock(side_effect=_exec)
+    cm = MagicMock()
+    cm.__aenter__ = AsyncMock(return_value=session)
+    cm.__aexit__ = AsyncMock(return_value=False)
+    return cm
+
+
+@pytest.mark.asyncio
+async def test_import_project_queues_task():
+    """POST /import dispatches import_project_traces and returns task_id."""
+    app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
+
+    row = _project_row()
+    mock_task = MagicMock()
+    mock_task.id = "celery-import-xyz"
+
+    with (
+        patch("sentinel_api.routers.projects.get_import_limits",
+              return_value={"imports_per_week": None, "traces_per_import": None}),
+        patch("sentinel_api.routers.projects.get_session",
+              return_value=_mock_session_import(row)),
+        patch("sentinel_api.routers.projects._celery.send_task",
+              return_value=mock_task) as mock_send,
+    ):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+            resp = await c.post("/v1/projects/proj-1/import")
+
+    app.dependency_overrides.clear()
+    assert resp.status_code == 200
+    assert resp.json()["task_id"] == "celery-import-xyz"
+    mock_send.assert_called_once_with(
+        "import_project_traces",
+        args=["proj-1", "ws-1", 0],
+    )
+
+
+@pytest.mark.asyncio
+async def test_import_project_not_found_returns_404():
+    app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
+
+    with (
+        patch("sentinel_api.routers.projects.get_import_limits",
+              return_value={"imports_per_week": None, "traces_per_import": None}),
+        patch("sentinel_api.routers.projects.get_session",
+              return_value=_mock_session_import(None)),
+    ):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+            resp = await c.post("/v1/projects/nonexistent/import")
+
+    app.dependency_overrides.clear()
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_import_project_quota_exceeded_returns_402():
+    """When imports_this_week >= limit, import endpoint returns 402."""
+    app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
+
+    row = _project_row()
+    with (
+        patch("sentinel_api.routers.projects.get_import_limits",
+              return_value={"imports_per_week": 3, "traces_per_import": 500}),
+        patch("sentinel_api.routers.projects.get_session",
+              return_value=_mock_session_import(row, import_count=3)),
+    ):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+            resp = await c.post("/v1/projects/proj-1/import")
+
+    app.dependency_overrides.clear()
+    assert resp.status_code == 402
+    assert "quota" in resp.json()["detail"].lower()
 
 
 # ---------------------------------------------------------------------------
