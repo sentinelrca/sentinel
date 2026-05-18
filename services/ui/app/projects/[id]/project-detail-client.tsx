@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Download, RefreshCw } from "lucide-react";
 import InsightCard from "@/components/insight-card";
-import { importProject, analyzeProject } from "@/lib/api";
+import { importProject, analyzeProject, getProject } from "@/lib/api";
 import { formatDistanceToNow } from "@/lib/date";
 import type { Insight, Project } from "@/lib/types";
+
+const POLL_INTERVAL_MS = 3000;
 
 interface Props {
   projectId: string;
@@ -19,24 +21,45 @@ interface Props {
 export default function ProjectDetailClient({
   projectId,
   status: initialStatus,
-  traceCount,
-  importCount,
-  lastAnalyzedAt,
+  traceCount: initialTraceCount,
+  importCount: initialImportCount,
+  lastAnalyzedAt: initialLastAnalyzedAt,
   initialInsights,
 }: Props) {
   const [status, setStatus] = useState(initialStatus);
+  const [traceCount, setTraceCount] = useState(initialTraceCount);
+  const [importCount, setImportCount] = useState(initialImportCount);
+  const [lastAnalyzedAt, setLastAnalyzedAt] = useState(initialLastAnalyzedAt);
   const [importing, setImporting] = useState(false);
-  const [importQueued, setImportQueued] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzeQueued, setAnalyzeQueued] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Poll project status while importing so the UI stays in sync with the
+  // background task — handles both "stay on page" and "navigate away and back".
+  useEffect(() => {
+    if (status !== "importing") return;
+
+    const id = setInterval(async () => {
+      try {
+        const project = await getProject(projectId);
+        setStatus(project.status);
+        setTraceCount(project.trace_count);
+        setImportCount(project.import_count);
+        setLastAnalyzedAt(project.last_analyzed_at);
+      } catch {
+        // ignore transient poll errors — keep polling
+      }
+    }, POLL_INTERVAL_MS);
+
+    return () => clearInterval(id);
+  }, [status, projectId]);
 
   async function handleImport() {
     setError(null);
     setImporting(true);
     try {
       await importProject(projectId);
-      setImportQueued(true);
       setStatus("importing");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to start import");
@@ -65,14 +88,13 @@ export default function ProjectDetailClient({
         <div className="flex items-center justify-between gap-4">
           {/* Left: status info */}
           <div className="text-xs text-slate-500">
-            {status === "importing" && !importQueued && (
-              <span className="text-blue-600">Importing traces — refresh in a moment once complete</span>
+            {status === "importing" && (
+              <span className="text-blue-600">
+                Importing traces — this may take a moment…
+              </span>
             )}
-            {status === "pending" && !importQueued && (
+            {status === "pending" && (
               <span>Import traces from your source to enable analysis</span>
-            )}
-            {importQueued && status === "importing" && (
-              <span className="text-blue-600">Import queued — refresh once importing completes</span>
             )}
             {status === "ready" && (
               <span>

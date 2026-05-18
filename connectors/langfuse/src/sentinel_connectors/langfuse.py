@@ -76,9 +76,12 @@ class LangfuseConnector(Connector):
                     },
                 )
                 resp.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                logger.error("Langfuse pull HTTP %d on page %d: %s", exc.response.status_code, page, exc)
+                raise
             except httpx.HTTPError as exc:
                 logger.error("Langfuse pull failed on page %d: %s", page, exc)
-                return
+                raise
 
             data = resp.json()
             observations = data.get("data", [])
@@ -124,9 +127,12 @@ class LangfuseConnector(Connector):
                     },
                 )
                 resp.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                logger.error("Langfuse pull_by_window HTTP %d on page %d: %s", exc.response.status_code, page, exc)
+                raise
             except httpx.HTTPError as exc:
                 logger.error("Langfuse pull_by_window failed on page %d: %s", page, exc)
-                return
+                raise
 
             observations = resp.json().get("data", [])
             if not observations:
@@ -172,9 +178,12 @@ class LangfuseConnector(Connector):
                         },
                     )
                     resp.raise_for_status()
+                except httpx.HTTPStatusError as exc:
+                    logger.error("Langfuse pull_by_ids HTTP %d for trace %s: %s", exc.response.status_code, trace_id, exc)
+                    raise
                 except httpx.HTTPError as exc:
                     logger.error("Langfuse pull_by_ids failed for trace %s: %s", trace_id, exc)
-                    break
+                    raise
 
                 observations = resp.json().get("data", [])
                 if not observations:
@@ -197,7 +206,7 @@ class LangfuseConnector(Connector):
     # ------------------------------------------------------------------
 
     def _client(self, config: dict) -> httpx.Client:
-        base_url   = config.get("base_url", _DEFAULT_BASE_URL).rstrip("/")
+        base_url   = (config.get("host") or config.get("base_url") or _DEFAULT_BASE_URL).rstrip("/")
         public_key = config["public_key"]
         secret_key = config["secret_key"]
         token      = base64.b64encode(f"{public_key}:{secret_key}".encode()).decode()
