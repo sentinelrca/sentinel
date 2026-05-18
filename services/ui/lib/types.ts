@@ -122,7 +122,11 @@ export interface Project {
   workspace_id: string;
   name: string;
   filters: ProjectFilters;
+  status: "pending" | "importing" | "ready" | "error";
+  trace_count: number;
+  import_count: number;
   created_at: string;
+  last_imported_at: string | null;
   last_analyzed_at: string | null;
 }
 

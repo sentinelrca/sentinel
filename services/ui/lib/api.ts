@@ -148,6 +148,12 @@ export async function deleteProject(projectId: string): Promise<void> {
   await apiFetch<unknown>(`/v1/projects/${projectId}`, { method: "DELETE" });
 }
 
+export async function importProject(projectId: string): Promise<{ task_id: string }> {
+  return apiFetch<{ task_id: string }>(`/v1/projects/${projectId}/import`, {
+    method: "POST",
+  });
+}
+
 export async function analyzeProject(projectId: string): Promise<{ task_id: string }> {
   return apiFetch<{ task_id: string }>(`/v1/projects/${projectId}/analyze`, {
     method: "POST",

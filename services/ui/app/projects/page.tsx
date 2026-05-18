@@ -1,15 +1,15 @@
 import { getProjects } from "@/lib/api";
+import type { Project } from "@/lib/types";
 import ProjectsClient from "./projects-client";
 
 export default async function ProjectsPage() {
-  let projects;
+  let projects: Project[] = [];
   let error: string | null = null;
 
   try {
     projects = await getProjects();
   } catch (e) {
     error = e instanceof Error ? e.message : "Failed to load projects";
-    projects = [];
   }
 
   if (error) {
