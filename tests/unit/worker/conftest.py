@@ -3,3 +3,4 @@
 # the worker_ready signal), so these imports are safe in unit tests.
 import sentinel_worker.tasks.import_project_traces  # noqa: F401
 import sentinel_worker.tasks.analyze_project  # noqa: F401
+import sentinel_worker.tasks.sync_source  # noqa: F401
