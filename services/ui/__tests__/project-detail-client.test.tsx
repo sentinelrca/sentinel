@@ -1,12 +1,13 @@
 import React from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import ProjectDetailClient from "@/app/projects/[id]/project-detail-client";
-import type { Insight } from "@/lib/types";
+import type { Insight, Project } from "@/lib/types";
 
 jest.mock("@/lib/api", () => ({
   importProject: jest.fn(),
   analyzeProject: jest.fn(),
+  getProject: jest.fn(),
 }));
 
 jest.mock("@/components/insight-card", () => {
@@ -17,10 +18,27 @@ jest.mock("@/components/insight-card", () => {
   return InsightCard;
 });
 
-import { importProject, analyzeProject } from "@/lib/api";
+import { importProject, analyzeProject, getProject } from "@/lib/api";
 
 const mockImportProject = importProject as jest.MockedFunction<typeof importProject>;
 const mockAnalyzeProject = analyzeProject as jest.MockedFunction<typeof analyzeProject>;
+const mockGetProject = getProject as jest.MockedFunction<typeof getProject>;
+
+function makeProject(overrides: Partial<Project> = {}): Project {
+  return {
+    id: "proj-1",
+    workspace_id: "ws-1",
+    name: "Test",
+    filters: {},
+    status: "pending",
+    trace_count: 0,
+    import_count: 0,
+    created_at: new Date().toISOString(),
+    last_imported_at: null,
+    last_analyzed_at: null,
+    ...overrides,
+  };
+}
 
 function baseProps(overrides = {}) {
   return {
@@ -53,7 +71,13 @@ function makeInsight(overrides: Partial<Insight> = {}): Insight {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  // Default: never resolves — prevents accidental polls completing in non-polling tests
+  mockGetProject.mockImplementation(() => new Promise(() => {}));
 });
+
+// ---------------------------------------------------------------------------
+// Status messages
+// ---------------------------------------------------------------------------
 
 describe("ProjectDetailClient — status messages", () => {
   it("shows import hint when status is pending", () => {
@@ -61,7 +85,7 @@ describe("ProjectDetailClient — status messages", () => {
     expect(screen.getByText(/Import traces from your source/)).toBeInTheDocument();
   });
 
-  it("shows importing message when status is importing (not yet triggered by this session)", () => {
+  it("shows importing message when status is importing", () => {
     render(<ProjectDetailClient {...baseProps({ status: "importing" })} />);
     expect(screen.getByText(/Importing traces/)).toBeInTheDocument();
   });
@@ -101,6 +125,10 @@ describe("ProjectDetailClient — status messages", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Action buttons
+// ---------------------------------------------------------------------------
+
 describe("ProjectDetailClient — action buttons", () => {
   it("shows Import button when status is pending", () => {
     render(<ProjectDetailClient {...baseProps({ status: "pending" })} />);
@@ -137,6 +165,10 @@ describe("ProjectDetailClient — action buttons", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Import flow
+// ---------------------------------------------------------------------------
+
 describe("ProjectDetailClient — Import flow", () => {
   it("calls importProject and transitions to importing state on success", async () => {
     mockImportProject.mockResolvedValueOnce({ task_id: "task-1" });
@@ -146,7 +178,7 @@ describe("ProjectDetailClient — Import flow", () => {
 
     expect(mockImportProject).toHaveBeenCalledWith("proj-1");
     await waitFor(() => {
-      expect(screen.getByText(/Import queued/)).toBeInTheDocument();
+      expect(screen.getByText(/Importing traces/)).toBeInTheDocument();
     });
   });
 
@@ -171,19 +203,114 @@ describe("ProjectDetailClient — Import flow", () => {
       expect(screen.getByText("Failed to start import")).toBeInTheDocument();
     });
   });
+});
 
-  it("does not show both importing messages simultaneously after Import click", async () => {
-    mockImportProject.mockResolvedValueOnce({ task_id: "task-1" });
+// ---------------------------------------------------------------------------
+// Polling (fake timers scoped to this block)
+// ---------------------------------------------------------------------------
+
+describe("ProjectDetailClient — polling while importing", () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => {
+    jest.clearAllTimers();
+    jest.useRealTimers();
+  });
+
+  it("polls getProject every 3s while status is importing", async () => {
+    mockGetProject.mockResolvedValue(makeProject({ status: "importing" }));
+    render(<ProjectDetailClient {...baseProps({ status: "importing" })} />);
+
+    await act(async () => { await jest.advanceTimersByTimeAsync(3000); });
+    expect(mockGetProject).toHaveBeenCalledTimes(1);
+
+    await act(async () => { await jest.advanceTimersByTimeAsync(3000); });
+    expect(mockGetProject).toHaveBeenCalledTimes(2);
+
+    expect(mockGetProject).toHaveBeenCalledWith("proj-1");
+  });
+
+  it("does not poll when status is pending", async () => {
     render(<ProjectDetailClient {...baseProps({ status: "pending" })} />);
+    await jest.advanceTimersByTimeAsync(9000);
+    expect(mockGetProject).not.toHaveBeenCalled();
+  });
 
-    await userEvent.click(screen.getByRole("button", { name: /Import/ }));
+  it("does not poll when status is ready", async () => {
+    render(<ProjectDetailClient {...baseProps({ status: "ready" })} />);
+    await jest.advanceTimersByTimeAsync(9000);
+    expect(mockGetProject).not.toHaveBeenCalled();
+  });
+
+  it("transitions to ready and stops polling when task completes", async () => {
+    mockGetProject
+      .mockResolvedValueOnce(makeProject({ status: "importing" }))
+      .mockResolvedValueOnce(makeProject({ status: "ready", trace_count: 42, import_count: 1 }));
+
+    render(<ProjectDetailClient {...baseProps({ status: "importing" })} />);
+
+    // First poll — still importing
+    await act(async () => { await jest.advanceTimersByTimeAsync(3000); });
+    expect(screen.getByText(/Importing traces/)).toBeInTheDocument();
+
+    // Second poll — ready
+    await act(async () => { await jest.advanceTimersByTimeAsync(3000); });
+    await waitFor(() => {
+      expect(screen.getByText(/42 traces imported/)).toBeInTheDocument();
+    });
+
+    // No further polls after reaching ready
+    const callCount = mockGetProject.mock.calls.length;
+    await jest.advanceTimersByTimeAsync(6000);
+    expect(mockGetProject).toHaveBeenCalledTimes(callCount);
+  });
+
+  it("transitions to error state when import fails in the background", async () => {
+    mockGetProject.mockResolvedValueOnce(makeProject({ status: "error" }));
+    render(<ProjectDetailClient {...baseProps({ status: "importing" })} />);
+
+    await act(async () => { await jest.advanceTimersByTimeAsync(3000); });
 
     await waitFor(() => {
-      expect(screen.getByText(/Import queued/)).toBeInTheDocument();
+      expect(screen.getByText(/check your source configuration/)).toBeInTheDocument();
     });
-    expect(screen.queryByText(/Importing traces — refresh in a moment once complete/)).not.toBeInTheDocument();
+  });
+
+  it("ignores transient poll errors and keeps polling until success", async () => {
+    mockGetProject
+      .mockRejectedValueOnce(new Error("timeout"))
+      .mockResolvedValueOnce(makeProject({ status: "ready", trace_count: 5, import_count: 1 }));
+
+    render(<ProjectDetailClient {...baseProps({ status: "importing" })} />);
+
+    // First poll — network error, state unchanged
+    await act(async () => { await jest.advanceTimersByTimeAsync(3000); });
+
+    // Second poll — success
+    await act(async () => { await jest.advanceTimersByTimeAsync(3000); });
+    await waitFor(() => {
+      expect(screen.getByText(/5 traces imported/)).toBeInTheDocument();
+    });
+  });
+
+  it("polling starts automatically when page loads with importing status", async () => {
+    mockGetProject.mockResolvedValueOnce(makeProject({ status: "ready", trace_count: 10, import_count: 1 }));
+    // Simulates navigating back to a page where the import was already in progress
+    render(<ProjectDetailClient {...baseProps({ status: "importing" })} />);
+
+    await act(async () => { await jest.advanceTimersByTimeAsync(3000); });
+
+    await waitFor(() => {
+      expect(screen.getByText(/10 traces imported/)).toBeInTheDocument();
+    });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Analyze flow
+// ---------------------------------------------------------------------------
 
 describe("ProjectDetailClient — Analyze flow", () => {
   it("calls analyzeProject and shows queued message on success", async () => {
@@ -209,6 +336,10 @@ describe("ProjectDetailClient — Analyze flow", () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Insights panel
+// ---------------------------------------------------------------------------
 
 describe("ProjectDetailClient — insights panel", () => {
   it("shows empty state when status is pending", () => {
@@ -237,7 +368,7 @@ describe("ProjectDetailClient — insights panel", () => {
     expect(screen.getByText("Latency Spike")).toBeInTheDocument();
   });
 
-  it("shows insights panel when analyzeQueued is true regardless of status", async () => {
+  it("shows insights panel when analyzeQueued is true", async () => {
     mockAnalyzeProject.mockResolvedValueOnce({ task_id: "task-2" });
     render(<ProjectDetailClient {...baseProps({ status: "ready", initialInsights: [] })} />);
 
