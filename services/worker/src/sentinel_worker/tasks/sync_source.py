@@ -33,7 +33,13 @@ async def _sync_source(source_id: str) -> dict:
             return {"source_id": source_id, "spans": 0, "traces": 0}
 
         workspace = await session.get(WorkspaceRow, source.workspace_id)
-        if workspace is None or workspace.tier < 1:
+        if workspace is None:
+            logger.warning(
+                "Workspace %s not found for source %s — skipping sync",
+                source.workspace_id, source_id,
+            )
+            return {"source_id": source_id, "spans": 0, "traces": 0, "skipped": True}
+        if workspace.tier < 1:
             logger.info(
                 "Live sync skipped for free-tier workspace %s", source.workspace_id
             )

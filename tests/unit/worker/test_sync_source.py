@@ -61,7 +61,7 @@ async def test_sync_skips_free_tier_workspace():
 
     assert result.get("skipped") is True
     assert result["spans"] == 0
-    mock_map.__getitem__.assert_not_called()
+    mock_map.get.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -79,7 +79,7 @@ async def test_sync_skips_when_workspace_not_found():
         result = await _sync_source("src-1")
 
     assert result.get("skipped") is True
-    mock_map.__getitem__.assert_not_called()
+    mock_map.get.assert_not_called()
 
 
 @pytest.mark.asyncio
