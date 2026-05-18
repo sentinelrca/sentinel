@@ -244,7 +244,10 @@ async def test_get_project_not_found_returns_404():
 async def test_delete_project_success():
     app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
 
-    with patch("sentinel_api.routers.projects.get_session", return_value=_mock_session_delete(1)):
+    with (
+        patch("sentinel_api.routers.projects.get_session", return_value=_mock_session_delete(1)),
+        patch("sentinel_api.routers.projects.delete_project_spans"),
+    ):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             resp = await c.delete("/v1/projects/proj-1")
 

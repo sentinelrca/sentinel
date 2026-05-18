@@ -21,9 +21,9 @@ from sentinel_pipeline.db.postgres import (
 )
 from sentinel_pipeline.limits import get_import_limits
 
-logger = logging.getLogger(__name__)
-
 from ..middleware.auth import get_workspace
+
+logger = logging.getLogger(__name__)
 
 _REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 _celery = Celery(broker=_REDIS_URL, backend=_REDIS_URL)
