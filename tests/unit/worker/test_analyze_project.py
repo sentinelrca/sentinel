@@ -80,6 +80,7 @@ async def test_analyze_uses_project_spans_not_live_spans():
         mock_graph.return_value = MagicMock()
         _setup_session_sequence(mock_session_cm, [
             (project,),        # load project
+            (project,),        # set status=analyzing
             (),                # load rule configs (empty)
             (None, project),   # delete insights (unused) + select project for timestamp
         ])
@@ -136,7 +137,11 @@ async def test_analyze_returns_early_when_no_spans():
         patch("sentinel_worker.tasks.analyze_project.run_rules") as mock_rules,
         patch("sentinel_worker.tasks.analyze_project.get_session") as mock_session_cm,
     ):
-        _setup_session_sequence(mock_session_cm, [(project,)])
+        _setup_session_sequence(mock_session_cm, [
+            (project,),  # load project
+            (project,),  # set status=analyzing
+            (project,),  # reset status=ready (no spans path)
+        ])
 
         from sentinel_worker.tasks.analyze_project import _analyze_project
         result = await _analyze_project("proj-1", "ws-1", tier=_tier(0))
@@ -179,6 +184,7 @@ async def test_analyze_persists_insights_with_project_id():
 
         sessions = [
             _make_mock_session((project,), on_create=_capture_add),       # load project
+            _make_mock_session((project,), on_create=_capture_add),       # set status=analyzing
             _make_mock_session((), on_create=_capture_add),                # rule configs (empty)
             _make_mock_session((None, project), on_create=_capture_add),   # delete (unused) + select for timestamp
         ]
@@ -208,6 +214,7 @@ async def test_analyze_updates_last_analyzed_at():
     ):
         _setup_session_sequence(mock_session_cm, [
             (project,),         # load project
+            (project,),         # set status=analyzing
             (),                 # rule configs
             (None, project),    # delete insights (unused result) + select project for timestamp
         ])
@@ -231,7 +238,7 @@ async def test_analyze_groups_spans_by_trace_and_runs_rules_per_trace():
         patch("sentinel_worker.tasks.analyze_project.run_rules", return_value=[]) as mock_rules,
         patch("sentinel_worker.tasks.analyze_project.get_session") as mock_session_cm,
     ):
-        _setup_session_sequence(mock_session_cm, [(project,), (), (None, project)])
+        _setup_session_sequence(mock_session_cm, [(project,), (project,), (), (None, project)])
 
         from sentinel_worker.tasks.analyze_project import _analyze_project
         await _analyze_project("proj-1", "ws-1", tier=_tier(0))

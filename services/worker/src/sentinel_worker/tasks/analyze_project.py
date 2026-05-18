@@ -29,6 +29,7 @@ def analyze_project(self, project_id: str, workspace_id: str, workspace_tier: in
     → run rules → persist insights.
 
     Only runs when project.status == 'ready' (import must complete first).
+    Sets status = 'analyzing' while running so the UI can show progress.
     """
     try:
         return asyncio.run(_analyze_project(project_id, workspace_id, Tier(workspace_tier)))
@@ -52,24 +53,44 @@ async def _analyze_project(project_id: str, workspace_id: str, tier: Tier) -> di
         logger.warning("Project %s not found", project_id)
         return {"project_id": project_id, "insights": 0}
 
-    if project.status != "ready":
+    if project.status not in ("ready", "analyzing"):
         logger.warning(
             "Project %s is not ready (status=%s) — import must complete before analysis",
             project_id, project.status,
         )
         return {"project_id": project_id, "insights": 0, "skipped": True}
 
-    # 2. Fetch spans from the project snapshot in ClickHouse
+    # 2. Mark as analyzing so the UI can show a spinner
+    async with get_session() as session:
+        proj = (await session.execute(
+            select(ProjectRow).where(
+                ProjectRow.id == project_id,
+                ProjectRow.workspace_id == workspace_id,
+            )
+        )).scalar_one_or_none()
+        if proj is not None:
+            proj.status = "analyzing"
+
+    # 3. Fetch spans from the project snapshot in ClickHouse
     raw_rows = await asyncio.to_thread(fetch_project_spans, project_id, workspace_id)
 
     if not raw_rows:
         logger.warning("No spans found in project snapshot %s", project_id)
+        async with get_session() as session:
+            proj = (await session.execute(
+                select(ProjectRow).where(
+                    ProjectRow.id == project_id,
+                    ProjectRow.workspace_id == workspace_id,
+                )
+            )).scalar_one_or_none()
+            if proj is not None:
+                proj.status = "ready"
         return {"project_id": project_id, "insights": 0}
 
-    # 3. Deserialize to NormalizedSpan
+    # 4. Deserialize to NormalizedSpan
     spans = [_row_to_span(row) for row in raw_rows]
 
-    # 4. Load workspace rule overrides
+    # 5. Load workspace rule overrides
     rule_overrides: dict[str, dict] = {}
     async with get_session() as session:
         cfg_result = await session.execute(
@@ -78,7 +99,7 @@ async def _analyze_project(project_id: str, workspace_id: str, tier: Tier) -> di
         for cfg in cfg_result.scalars().all():
             rule_overrides[cfg.rule_id] = {"action": cfg.action, "severity": cfg.severity}
 
-    # 5. Group spans by trace_id and run rules per trace
+    # 6. Group spans by trace_id and run rules per trace
     trace_groups: dict[str, list[NormalizedSpan]] = {}
     for span in spans:
         trace_groups.setdefault(span.trace_id, []).append(span)
@@ -89,8 +110,8 @@ async def _analyze_project(project_id: str, workspace_id: str, tier: Tier) -> di
         insights = run_rules(graph, workspace_tier=tier, rule_overrides=rule_overrides)
         all_insights.extend(insights)
 
-    # 6. Persist with idempotency: delete existing project insights, insert new ones,
-    #    update last_analyzed_at — all in a single transaction
+    # 7. Persist: delete existing project insights, insert new ones,
+    #    set status back to ready, update last_analyzed_at
     async with get_session() as session:
         await session.execute(
             delete(InsightRow).where(
@@ -123,6 +144,7 @@ async def _analyze_project(project_id: str, workspace_id: str, tier: Tier) -> di
         )
         project_row = project_result.scalar_one_or_none()
         if project_row is not None:
+            project_row.status = "ready"
             project_row.last_analyzed_at = datetime.now(timezone.utc)
 
     total_count = len(all_insights)

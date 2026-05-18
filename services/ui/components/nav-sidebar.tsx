@@ -5,13 +5,19 @@ import { usePathname } from "next/navigation";
 import { Activity, Database, FolderOpen, GitBranch, Settings, ShieldAlert } from "lucide-react";
 import { clsx } from "clsx";
 
-const NAV = [
-  { href: "/traces",         label: "Traces",   icon: GitBranch },
-  { href: "/insights",       label: "Insights", icon: ShieldAlert },
-  { href: "/projects",       label: "Projects", icon: FolderOpen },
-  { href: "/sources",        label: "Sources",  icon: Database },
-  { href: "/settings/rules", label: "Settings", icon: Settings },
+const LIVE_NAV = [
+  { href: "/traces",   label: "Traces",   icon: GitBranch },
+  { href: "/insights", label: "Insights", icon: ShieldAlert },
+  { href: "/sources",  label: "Sources",  icon: Database },
 ];
+
+const STATUS_DOT: Record<string, string> = {
+  ready:     "bg-green-400",
+  importing: "bg-blue-400 animate-pulse",
+  analyzing: "bg-indigo-400 animate-pulse",
+  error:     "bg-red-400",
+  pending:   "bg-slate-400",
+};
 
 function SyncDot({ lastSyncedAt }: { lastSyncedAt: string | null }) {
   if (!lastSyncedAt) return null;
@@ -32,11 +38,18 @@ function SyncDot({ lastSyncedAt }: { lastSyncedAt: string | null }) {
   );
 }
 
-interface Props {
-  lastSyncedAt?: string | null;
+interface ProjectEntry {
+  id: string;
+  name: string;
+  status: string;
 }
 
-export default function NavSidebar({ lastSyncedAt }: Props) {
+interface Props {
+  lastSyncedAt?: string | null;
+  projects?: ProjectEntry[];
+}
+
+export default function NavSidebar({ lastSyncedAt, projects = [] }: Props) {
   const pathname = usePathname();
 
   return (
@@ -47,25 +60,93 @@ export default function NavSidebar({ lastSyncedAt }: Props) {
         <span className="text-sm font-semibold tracking-wide">SentinelAI</span>
       </div>
 
-      <nav className="flex-1 space-y-0.5 px-2 py-2">
-        {NAV.map(({ href, label, icon: Icon }) => {
-          const active = pathname === href || pathname.startsWith(href + "/");
-          return (
-            <Link
-              key={href}
-              href={href}
-              className={clsx(
-                "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors",
-                active
-                  ? "bg-slate-700 text-white"
-                  : "hover:bg-slate-800 hover:text-slate-200"
-              )}
-            >
-              <Icon size={16} />
-              {label}
-            </Link>
-          );
-        })}
+      <nav className="flex-1 overflow-y-auto px-2 py-2">
+        {/* Live section */}
+        <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-widest text-slate-600">
+          Live
+        </p>
+        <div className="mb-3 space-y-0.5">
+          {LIVE_NAV.map(({ href, label, icon: Icon }) => {
+            const active = pathname === href || pathname.startsWith(href + "/");
+            return (
+              <Link
+                key={href}
+                href={href}
+                className={clsx(
+                  "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors",
+                  active
+                    ? "bg-slate-700 text-white"
+                    : "hover:bg-slate-800 hover:text-slate-200"
+                )}
+              >
+                <Icon size={16} />
+                {label}
+              </Link>
+            );
+          })}
+        </div>
+
+        {/* Projects section */}
+        <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-widest text-slate-600">
+          Projects
+        </p>
+        <div className="mb-3 space-y-0.5">
+          <Link
+            href="/projects"
+            className={clsx(
+              "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors",
+              pathname === "/projects"
+                ? "bg-slate-700 text-white"
+                : "hover:bg-slate-800 hover:text-slate-200"
+            )}
+          >
+            <FolderOpen size={16} />
+            All Projects
+          </Link>
+          {projects.map((p) => {
+            const active = pathname.startsWith(`/projects/${p.id}`);
+            const dotClass = STATUS_DOT[p.status] ?? STATUS_DOT.pending;
+            return (
+              <Link
+                key={p.id}
+                href={`/projects/${p.id}`}
+                className={clsx(
+                  "flex items-center gap-2 rounded-md px-3 py-1.5 text-xs transition-colors",
+                  active
+                    ? "bg-slate-700 text-white"
+                    : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+                )}
+              >
+                <span className={clsx("h-1.5 w-1.5 shrink-0 rounded-full", dotClass)} />
+                <span className="truncate">{p.name}</span>
+              </Link>
+            );
+          })}
+        </div>
+
+        {/* Settings */}
+        <div className="space-y-0.5">
+          {[{ href: "/settings/rules", label: "Settings", icon: Settings }].map(
+            ({ href, label, icon: Icon }) => {
+              const active = pathname === href || pathname.startsWith(href + "/");
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  className={clsx(
+                    "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors",
+                    active
+                      ? "bg-slate-700 text-white"
+                      : "hover:bg-slate-800 hover:text-slate-200"
+                  )}
+                >
+                  <Icon size={16} />
+                  {label}
+                </Link>
+              );
+            }
+          )}
+        </div>
       </nav>
 
       <SyncDot lastSyncedAt={lastSyncedAt ?? null} />

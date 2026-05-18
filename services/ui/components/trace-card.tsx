@@ -5,13 +5,22 @@ import type { TraceSummary } from "@/lib/types";
 
 const MAX_RULES = 4;
 
-export default function TraceCard({ trace }: { trace: TraceSummary }) {
+export default function TraceCard({
+  trace,
+  projectId,
+}: {
+  trace: TraceSummary;
+  projectId?: string;
+}) {
   const extra = trace.rule_ids.length - MAX_RULES;
   const visibleRules = trace.rule_ids.slice(0, MAX_RULES);
+  const href = projectId
+    ? `/traces/${trace.trace_id}?project_id=${encodeURIComponent(projectId)}`
+    : `/traces/${trace.trace_id}`;
 
   return (
     <Link
-      href={`/traces/${trace.trace_id}`}
+      href={href}
       className="block rounded-lg border border-slate-200 bg-white p-4 transition-shadow hover:shadow-md"
     >
       <div className="flex items-start justify-between gap-3">

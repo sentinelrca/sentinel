@@ -5,9 +5,9 @@ import asyncio
 import json
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
-from sentinel_pipeline.db.clickhouse import fetch_trace_spans
+from sentinel_pipeline.db.clickhouse import fetch_project_trace_spans, fetch_trace_spans
 from sentinel_pipeline.db.postgres import WorkspaceRow
 from sentinel_pipeline.graph.builder import build_graph
 from sentinel_pipeline.models.span import NormalizedSpan, SpanKind, SpanStatus
@@ -20,9 +20,15 @@ router = APIRouter(prefix="/flows", tags=["flows"])
 @router.get("/{trace_id}")
 async def get_flow(
     trace_id: str,
+    project_id: str | None = Query(None),
     workspace: WorkspaceRow = Depends(get_workspace),
 ) -> dict[str, Any]:
-    raw_rows = await asyncio.to_thread(fetch_trace_spans, trace_id, workspace.id)
+    if project_id:
+        raw_rows = await asyncio.to_thread(
+            fetch_project_trace_spans, project_id, trace_id, workspace.id
+        )
+    else:
+        raw_rows = await asyncio.to_thread(fetch_trace_spans, trace_id, workspace.id)
     if not raw_rows:
         raise HTTPException(status_code=404, detail="Trace not found")
 

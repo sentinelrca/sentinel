@@ -1,6 +1,7 @@
 """Projects router — manage and analyze collections of traces."""
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import uuid
@@ -12,7 +13,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import delete, func, select
 
-from sentinel_pipeline.db.clickhouse import delete_project_spans
+from sentinel_pipeline.db.clickhouse import delete_project_spans, fetch_project_spans_stats_batch
 from sentinel_pipeline.db.postgres import (
     InsightRow,
     ProjectRow,
@@ -41,7 +42,7 @@ class ProjectOut(BaseModel):
     workspace_id: str
     name: str
     filters: dict
-    status: Literal["pending", "importing", "ready", "error"]
+    status: Literal["pending", "importing", "analyzing", "ready", "error"]
     trace_count: int
     import_count: int
     created_at: datetime
@@ -255,5 +256,66 @@ async def get_project_insights(
         }
         for r in rows
     ]
+
+    return {"items": items, "total": len(items)}
+
+
+_SEVERITY_ORDER = {"critical": 4, "high": 3, "warning": 2, "info": 1}
+
+
+@router.get("/{project_id}/traces")
+async def get_project_traces(
+    project_id: str,
+    workspace: WorkspaceRow = Depends(get_workspace),
+) -> dict[str, Any]:
+    """Return project insights grouped by trace_id, with span stats from project_spans."""
+    async with get_session() as session:
+        proj_result = await session.execute(
+            select(ProjectRow).where(
+                ProjectRow.id == project_id,
+                ProjectRow.workspace_id == workspace.id,
+            )
+        )
+        if proj_result.scalar_one_or_none() is None:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        rows_result = await session.execute(
+            select(
+                InsightRow.trace_id,
+                func.count().label("insight_count"),
+                func.array_agg(InsightRow.rule_id).label("rule_ids"),
+                func.max(InsightRow.created_at).label("latest_insight_at"),
+                func.array_agg(InsightRow.severity).label("severities"),
+            )
+            .where(
+                InsightRow.workspace_id == workspace.id,
+                InsightRow.project_id == project_id,
+                InsightRow.status == "open",
+            )
+            .group_by(InsightRow.trace_id)
+            .order_by(func.max(InsightRow.created_at).desc())
+        )
+        groups = rows_result.all()
+
+    trace_ids = [g.trace_id for g in groups]
+    stats = await asyncio.to_thread(
+        fetch_project_spans_stats_batch, project_id, trace_ids, workspace.id
+    )
+
+    items = []
+    for g in groups:
+        severities = g.severities or []
+        worst = max(severities, key=lambda s: _SEVERITY_ORDER.get(s, 0)) if severities else "info"
+        span_stats = stats.get(g.trace_id, {"span_count": 0, "llm_calls": 0, "total_ms": 0})
+        items.append({
+            "trace_id": g.trace_id,
+            "worst_severity": worst,
+            "insight_count": g.insight_count,
+            "rule_ids": list(dict.fromkeys(g.rule_ids)),
+            "latest_insight_at": g.latest_insight_at.isoformat() if g.latest_insight_at else None,
+            "span_count": span_stats["span_count"],
+            "llm_calls": span_stats["llm_calls"],
+            "total_ms": span_stats["total_ms"],
+        })
 
     return {"items": items, "total": len(items)}

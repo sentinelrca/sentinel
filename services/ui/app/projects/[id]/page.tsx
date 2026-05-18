@@ -1,4 +1,4 @@
-import { getProject, getProjectInsights } from "@/lib/api";
+import { getProject, getProjectTraces } from "@/lib/api";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import ProjectDetailClient from "./project-detail-client";
@@ -26,9 +26,9 @@ function filterDescription(filters: { date_from?: string; date_to?: string; trac
 export default async function ProjectDetailPage({ params }: Props) {
   const { id } = params;
 
-  const [projectResult, insightsResult] = await Promise.allSettled([
+  const [projectResult, tracesResult] = await Promise.allSettled([
     getProject(id),
-    getProjectInsights(id),
+    getProjectTraces(id),
   ]);
 
   const project = projectResult.status === "fulfilled" ? projectResult.value : null;
@@ -36,10 +36,7 @@ export default async function ProjectDetailPage({ params }: Props) {
     ? (projectResult.reason instanceof Error ? projectResult.reason.message : "Failed to load project")
     : null;
 
-  const insights = insightsResult.status === "fulfilled" ? insightsResult.value : null;
-  const insightsError = insightsResult.status === "rejected"
-    ? (insightsResult.reason instanceof Error ? insightsResult.reason.message : "Failed to load insights")
-    : null;
+  const tracesData = tracesResult.status === "fulfilled" ? tracesResult.value : null;
 
   return (
     <div className="flex h-full flex-col">
@@ -60,6 +57,9 @@ export default async function ProjectDetailPage({ params }: Props) {
           <>
             <span className="text-slate-300">·</span>
             <span className="text-xs text-slate-500">{filterDescription(project.filters)}</span>
+            <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
+              Offline Snapshot
+            </span>
           </>
         )}
       </div>
@@ -69,12 +69,6 @@ export default async function ProjectDetailPage({ params }: Props) {
           <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
             {projectError}
           </div>
-        ) : null}
-
-        {insightsError ? (
-          <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-            {insightsError}
-          </div>
         ) : (
           <ProjectDetailClient
             projectId={id}
@@ -82,7 +76,7 @@ export default async function ProjectDetailPage({ params }: Props) {
             traceCount={project?.trace_count ?? 0}
             importCount={project?.import_count ?? 0}
             lastAnalyzedAt={project?.last_analyzed_at ?? null}
-            initialInsights={insights?.items ?? []}
+            initialTraces={tracesData?.items ?? []}
           />
         )}
       </div>
