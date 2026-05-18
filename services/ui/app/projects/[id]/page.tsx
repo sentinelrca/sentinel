@@ -78,7 +78,6 @@ export default async function ProjectDetailPage({ params }: Props) {
         ) : (
           <ProjectDetailClient
             projectId={id}
-            projectName={project?.name ?? id}
             status={project?.status ?? "pending"}
             traceCount={project?.trace_count ?? 0}
             importCount={project?.import_count ?? 0}

@@ -9,7 +9,6 @@ import type { Insight, Project } from "@/lib/types";
 
 interface Props {
   projectId: string;
-  projectName: string;
   status: Project["status"];
   traceCount: number;
   importCount: number;
@@ -66,7 +65,7 @@ export default function ProjectDetailClient({
         <div className="flex items-center justify-between gap-4">
           {/* Left: status info */}
           <div className="text-xs text-slate-500">
-            {status === "importing" && (
+            {status === "importing" && !importQueued && (
               <span className="text-blue-600">Importing traces — refresh in a moment once complete</span>
             )}
             {status === "pending" && !importQueued && (

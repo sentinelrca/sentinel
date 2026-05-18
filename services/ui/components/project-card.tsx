@@ -51,7 +51,7 @@ export default function ProjectCard({ project }: { project: Project }) {
           </div>
           <p className="mt-1 text-xs text-slate-500">
             {filterSummary(project)}
-            {project.trace_count > 0 && ` · ${project.trace_count} traces`}
+            {project.trace_count > 0 && ` · ${project.trace_count} trace${project.trace_count !== 1 ? "s" : ""}`}
           </p>
         </div>
         <div className="shrink-0 text-right text-xs text-slate-400">
