@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 from sentinel_worker.main import app
 from sentinel_pipeline.db.clickhouse import insert_spans
-from sentinel_pipeline.db.postgres import get_session, SourceRow
+from sentinel_pipeline.db.postgres import get_session, SourceRow, WorkspaceRow
 from sentinel_connectors.langfuse import LangfuseConnector
 
 logger = logging.getLogger(__name__)
@@ -31,6 +31,19 @@ async def _sync_source(source_id: str) -> dict:
         if not source:
             logger.warning("Source %s not found", source_id)
             return {"source_id": source_id, "spans": 0, "traces": 0}
+
+        workspace = await session.get(WorkspaceRow, source.workspace_id)
+        if workspace is None:
+            logger.warning(
+                "Workspace %s not found for source %s — skipping sync",
+                source.workspace_id, source_id,
+            )
+            return {"source_id": source_id, "spans": 0, "traces": 0, "skipped": True}
+        if workspace.tier < 1:
+            logger.info(
+                "Live sync skipped for free-tier workspace %s", source.workspace_id
+            )
+            return {"source_id": source_id, "spans": 0, "traces": 0, "skipped": True}
 
         connector = _CONNECTOR_MAP.get(source.kind)
         if not connector:
