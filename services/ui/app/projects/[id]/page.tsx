@@ -37,6 +37,9 @@ export default async function ProjectDetailPage({ params }: Props) {
     : null;
 
   const tracesData = tracesResult.status === "fulfilled" ? tracesResult.value : null;
+  const tracesError = tracesResult.status === "rejected"
+    ? (tracesResult.reason instanceof Error ? tracesResult.reason.message : "Failed to load traces")
+    : null;
 
   return (
     <div className="flex h-full flex-col">
@@ -68,6 +71,10 @@ export default async function ProjectDetailPage({ params }: Props) {
         {projectError ? (
           <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
             {projectError}
+          </div>
+        ) : tracesError ? (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            {tracesError}
           </div>
         ) : (
           <ProjectDetailClient
