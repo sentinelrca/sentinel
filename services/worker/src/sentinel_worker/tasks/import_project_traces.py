@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import func, select
 
 from sentinel_pipeline.db.clickhouse import insert_project_spans
-from sentinel_pipeline.db.postgres import ProjectRow, SourceRow, get_session
+from sentinel_pipeline.db.postgres import engine, ProjectRow, SourceRow, get_session
 from sentinel_pipeline.limits import get_import_limits
 from sentinel_worker.main import app
 
@@ -37,6 +37,7 @@ def import_project_traces(
     workspace_tier: int = 0,
 ) -> dict:
     try:
+        engine.sync_engine.dispose()
         return asyncio.run(_import_project_traces(project_id, workspace_id, workspace_tier))
     except Exception as exc:
         logger.exception("import_project_traces failed for project %s: %s", project_id, exc)
