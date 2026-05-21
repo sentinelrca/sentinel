@@ -28,6 +28,13 @@ logger = logging.getLogger(__name__)
 _DEFAULT_BASE_URL = "https://cloud.langfuse.com"
 _PAGE_SIZE        = 100
 
+
+def _to_langfuse_ts(dt: datetime) -> str:
+    """Format datetime as ISO 8601 with Z suffix — Langfuse rejects +00:00 encoding."""
+    utc = dt.astimezone(timezone.utc)
+    return utc.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+
+
 _KIND_MAP: dict[str, SpanKind] = {
     "llm":        SpanKind.LLM_CALL,
     "generation": SpanKind.LLM_CALL,
@@ -63,18 +70,20 @@ class LangfuseConnector(Connector):
         client        = self._client(config)
         store_content = config.get("store_content", False)
         page          = 1
-        since_iso     = since.isoformat()
+        since_iso     = _to_langfuse_ts(since)
 
         while True:
             try:
                 resp = client.get(
-                    "/api/public/observations",
-                    params={
-                        "page":      page,
-                        "limit":     _PAGE_SIZE,
-                        "fromStartTime": since_iso,
-                    },
+                    f"/api/public/observations?page={page}&limit={_PAGE_SIZE}"
+                    f"&fromStartTime={since_iso}",
                 )
+                if resp.status_code == 422:
+                    logger.warning(
+                        "Langfuse observations API 422 on page %d — stopping: %s",
+                        page, resp.text[:200],
+                    )
+                    break
                 resp.raise_for_status()
             except httpx.HTTPStatusError as exc:
                 logger.error("Langfuse pull HTTP %d on page %d: %s", exc.response.status_code, page, exc)
@@ -118,14 +127,17 @@ class LangfuseConnector(Connector):
         while True:
             try:
                 resp = client.get(
-                    "/api/public/observations",
-                    params={
-                        "page":          page,
-                        "limit":         _PAGE_SIZE,
-                        "fromStartTime": since.isoformat(),
-                        "toStartTime":   until.isoformat(),
-                    },
+                    f"/api/public/observations?page={page}&limit={_PAGE_SIZE}"
+                    f"&fromStartTime={_to_langfuse_ts(since)}"
+                    f"&toStartTime={_to_langfuse_ts(until)}",
                 )
+                if resp.status_code == 422:
+                    logger.warning(
+                        "Langfuse observations API 422 on page %d — "
+                        "stopping pagination (partial results preserved): %s",
+                        page, resp.text[:200],
+                    )
+                    break
                 resp.raise_for_status()
             except httpx.HTTPStatusError as exc:
                 logger.error("Langfuse pull_by_window HTTP %d on page %d: %s", exc.response.status_code, page, exc)
@@ -213,7 +225,7 @@ class LangfuseConnector(Connector):
         return httpx.Client(
             base_url=base_url,
             headers={"Authorization": f"Basic {token}"},
-            timeout=30.0,
+            timeout=httpx.Timeout(60.0, connect=10.0),
         )
 
     def _map_observation(self, obs: dict, workspace_id: str, store_content: bool = False) -> NormalizedSpan:
