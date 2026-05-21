@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from sentinel_worker.main import app
 from sentinel_pipeline.db.clickhouse import fetch_project_spans
 from sentinel_pipeline.db.postgres import (
+    engine,
     get_session,
     InsightRow,
     RuleConfigRow,
@@ -32,6 +33,7 @@ def analyze_project(self, project_id: str, workspace_id: str, workspace_tier: in
     Sets status = 'analyzing' while running so the UI can show progress.
     """
     try:
+        engine.sync_engine.dispose()
         return asyncio.run(_analyze_project(project_id, workspace_id, Tier(workspace_tier)))
     except Exception as exc:
         logger.exception("analyze_project failed for project %s: %s", project_id, exc)

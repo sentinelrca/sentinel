@@ -16,6 +16,10 @@ export default function ProjectsClient({ initialProjects }: Props) {
     setProjects((prev) => [project, ...prev]);
   }
 
+  function handleDeleted(id: string) {
+    setProjects((prev) => prev.filter((p) => p.id !== id));
+  }
+
   return (
     <>
       <div className="mb-6 flex items-center justify-between">
@@ -37,7 +41,7 @@ export default function ProjectsClient({ initialProjects }: Props) {
       ) : (
         <div className="space-y-3">
           {projects.map((project) => (
-            <ProjectCard key={project.id} project={project} />
+            <ProjectCard key={project.id} project={project} onDeleted={handleDeleted} />
           ))}
         </div>
       )}
