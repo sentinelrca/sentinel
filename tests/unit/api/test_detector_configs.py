@@ -1,4 +1,4 @@
-"""Unit tests for the rule_configs router."""
+"""Unit tests for the detector_configs router."""
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -8,23 +8,23 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from sentinel_api.main import app
-from sentinel_pipeline.db.postgres import RuleConfigRow, WorkspaceRow
+from sentinel_pipeline.db.postgres import DetectorConfigRow, WorkspaceRow
 
 _FAKE_WORKSPACE = WorkspaceRow(id="ws-1", name="test", api_key_hash="x", tier=0)
 _NOW = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
 
-def _cfg_row(**overrides) -> RuleConfigRow:
+def _cfg_row(**overrides) -> DetectorConfigRow:
     defaults = dict(
         id="cfg-1",
         workspace_id="ws-1",
-        rule_id="agent_loop",
+        detector_id="agent_loop",
         action="DISABLED",
         severity=None,
         created_at=_NOW,
         updated_at=_NOW,
     )
-    return RuleConfigRow(**{**defaults, **overrides})
+    return DetectorConfigRow(**{**defaults, **overrides})
 
 
 def _mock_session_empty():
@@ -63,17 +63,17 @@ def _mock_session_returning(row):
 
 
 # ---------------------------------------------------------------------------
-# GET /v1/rule-configs
+# GET /v1/detector-configs
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_list_rule_configs_empty():
+async def test_list_detector_configs_empty():
     from sentinel_api.middleware.auth import get_workspace as _gw
 
     app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
-    with patch("sentinel_api.routers.rule_configs.get_session", return_value=_mock_session_empty()):
+    with patch("sentinel_api.routers.detector_configs.get_session", return_value=_mock_session_empty()):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            resp = await client.get("/v1/rule-configs")
+            resp = await client.get("/v1/detector-configs")
 
     app.dependency_overrides.clear()
     assert resp.status_code == 200
@@ -81,38 +81,38 @@ async def test_list_rule_configs_empty():
 
 
 @pytest.mark.asyncio
-async def test_list_rule_configs_returns_rows():
+async def test_list_detector_configs_returns_rows():
     from sentinel_api.middleware.auth import get_workspace as _gw
 
-    rows = [_cfg_row(), _cfg_row(id="cfg-2", rule_id="sequential_tools", action="OVERRIDE_SEVERITY", severity="info")]
+    rows = [_cfg_row(), _cfg_row(id="cfg-2", detector_id="sequential_tools", action="OVERRIDE_SEVERITY", severity="info")]
     app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
-    with patch("sentinel_api.routers.rule_configs.get_session", return_value=_mock_session_with_rows(rows)):
+    with patch("sentinel_api.routers.detector_configs.get_session", return_value=_mock_session_with_rows(rows)):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            resp = await client.get("/v1/rule-configs")
+            resp = await client.get("/v1/detector-configs")
 
     app.dependency_overrides.clear()
     body = resp.json()
     assert len(body["items"]) == 2
-    assert body["items"][0]["rule_id"] == "agent_loop"
+    assert body["items"][0]["detector_id"] == "agent_loop"
     assert body["items"][0]["action"] == "DISABLED"
     assert body["items"][1]["action"] == "OVERRIDE_SEVERITY"
     assert body["items"][1]["severity"] == "info"
 
 
 # ---------------------------------------------------------------------------
-# PUT /v1/rule-configs/{rule_id}
+# PUT /v1/detector-configs/{detector_id}
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_put_rule_config_disabled_updates_existing():
+async def test_put_detector_config_disabled_updates_existing():
     from sentinel_api.middleware.auth import get_workspace as _gw
 
     existing = _cfg_row(action="OVERRIDE_SEVERITY", severity="warning")
     app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
-    with patch("sentinel_api.routers.rule_configs.get_session", return_value=_mock_session_returning(existing)):
+    with patch("sentinel_api.routers.detector_configs.get_session", return_value=_mock_session_returning(existing)):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             resp = await client.put(
-                "/v1/rule-configs/agent_loop",
+                "/v1/detector-configs/agent_loop",
                 json={"action": "DISABLED"},
             )
 
@@ -123,15 +123,15 @@ async def test_put_rule_config_disabled_updates_existing():
 
 
 @pytest.mark.asyncio
-async def test_put_rule_config_override_severity():
+async def test_put_detector_config_override_severity():
     from sentinel_api.middleware.auth import get_workspace as _gw
 
     existing = _cfg_row(action="OVERRIDE_SEVERITY", severity="warning")
     app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
-    with patch("sentinel_api.routers.rule_configs.get_session", return_value=_mock_session_returning(existing)):
+    with patch("sentinel_api.routers.detector_configs.get_session", return_value=_mock_session_returning(existing)):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             resp = await client.put(
-                "/v1/rule-configs/agent_loop",
+                "/v1/detector-configs/agent_loop",
                 json={"action": "OVERRIDE_SEVERITY", "severity": "info"},
             )
 
@@ -142,13 +142,13 @@ async def test_put_rule_config_override_severity():
 
 
 @pytest.mark.asyncio
-async def test_put_rule_config_invalid_action_returns_400():
+async def test_put_detector_config_invalid_action_returns_400():
     from sentinel_api.middleware.auth import get_workspace as _gw
 
     app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         resp = await client.put(
-            "/v1/rule-configs/agent_loop",
+            "/v1/detector-configs/agent_loop",
             json={"action": "INVALID"},
         )
 
@@ -157,13 +157,13 @@ async def test_put_rule_config_invalid_action_returns_400():
 
 
 @pytest.mark.asyncio
-async def test_put_rule_config_override_severity_without_severity_returns_400():
+async def test_put_detector_config_override_severity_without_severity_returns_400():
     from sentinel_api.middleware.auth import get_workspace as _gw
 
     app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         resp = await client.put(
-            "/v1/rule-configs/agent_loop",
+            "/v1/detector-configs/agent_loop",
             json={"action": "OVERRIDE_SEVERITY"},
         )
 
@@ -172,13 +172,13 @@ async def test_put_rule_config_override_severity_without_severity_returns_400():
 
 
 @pytest.mark.asyncio
-async def test_put_rule_config_invalid_severity_returns_400():
+async def test_put_detector_config_invalid_severity_returns_400():
     from sentinel_api.middleware.auth import get_workspace as _gw
 
     app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         resp = await client.put(
-            "/v1/rule-configs/agent_loop",
+            "/v1/detector-configs/agent_loop",
             json={"action": "OVERRIDE_SEVERITY", "severity": "extreme"},
         )
 
@@ -187,7 +187,7 @@ async def test_put_rule_config_invalid_severity_returns_400():
 
 
 # ---------------------------------------------------------------------------
-# DELETE /v1/rule-configs/{rule_id}
+# DELETE /v1/detector-configs/{detector_id}
 # ---------------------------------------------------------------------------
 
 def _mock_session_delete(rowcount: int):
@@ -202,26 +202,26 @@ def _mock_session_delete(rowcount: int):
 
 
 @pytest.mark.asyncio
-async def test_delete_rule_config_success():
+async def test_delete_detector_config_success():
     from sentinel_api.middleware.auth import get_workspace as _gw
 
     app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
-    with patch("sentinel_api.routers.rule_configs.get_session", return_value=_mock_session_delete(1)):
+    with patch("sentinel_api.routers.detector_configs.get_session", return_value=_mock_session_delete(1)):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            resp = await client.delete("/v1/rule-configs/agent_loop")
+            resp = await client.delete("/v1/detector-configs/agent_loop")
 
     app.dependency_overrides.clear()
     assert resp.status_code == 204
 
 
 @pytest.mark.asyncio
-async def test_delete_rule_config_not_found_returns_404():
+async def test_delete_detector_config_not_found_returns_404():
     from sentinel_api.middleware.auth import get_workspace as _gw
 
     app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
-    with patch("sentinel_api.routers.rule_configs.get_session", return_value=_mock_session_delete(0)):
+    with patch("sentinel_api.routers.detector_configs.get_session", return_value=_mock_session_delete(0)):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            resp = await client.delete("/v1/rule-configs/nonexistent")
+            resp = await client.delete("/v1/detector-configs/nonexistent")
 
     app.dependency_overrides.clear()
     assert resp.status_code == 404

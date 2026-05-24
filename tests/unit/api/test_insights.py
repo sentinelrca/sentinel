@@ -24,7 +24,7 @@ def _insight_row(**overrides) -> InsightRow:
         id="ins-1",
         workspace_id="ws-1",
         trace_id="trace-abc",
-        rule_id="agent_loop",
+        detector_id="agent_loop",
         severity="HIGH",
         title="Agent loop detected",
         detail="PlannerAgent invoked 4 times",
@@ -41,7 +41,7 @@ def test_row_to_dict_includes_all_fields():
     d = _row_to_dict(_insight_row())
     assert d["id"] == "ins-1"
     assert d["trace_id"] == "trace-abc"
-    assert d["rule_id"] == "agent_loop"
+    assert d["detector_id"] == "agent_loop"
     assert d["severity"] == "HIGH"
     assert d["title"] == "Agent loop detected"
     assert d["detail"] == "PlannerAgent invoked 4 times"

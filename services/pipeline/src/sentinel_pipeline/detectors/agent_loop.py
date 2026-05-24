@@ -6,7 +6,7 @@ from sentinel_pipeline.models.graph import FlowGraph
 from sentinel_pipeline.models.insight import Insight, Severity, Tier
 from sentinel_pipeline.models.span import SpanKind
 from sentinel_pipeline.signals.extractor import Signals
-from .base import Rule
+from .base import Detector
 
 # An agent must appear at least this many times in execution order to trigger
 _MIN_LOOP_COUNT = 3
@@ -18,7 +18,7 @@ _FRAMEWORK_NAMES = frozenset({
 })
 
 
-class AgentLoopRule(Rule):
+class AgentLoopDetector(Detector):
     id       = "agent_loop"
     name     = "Agent Loop"
     severity = Severity.HIGH
@@ -38,7 +38,7 @@ class AgentLoopRule(Rule):
             insights.append(Insight(
                 workspace_id=graph.workspace_id,
                 trace_id=graph.trace_id,
-                rule_id=self.id,
+                detector_id=self.id,
                 severity=self.severity,
                 title="Agent loop detected",
                 detail=(
@@ -70,7 +70,7 @@ class AgentLoopRule(Rule):
                 insights.append(Insight(
                     workspace_id=graph.workspace_id,
                     trace_id=graph.trace_id,
-                    rule_id=self.id,
+                    detector_id=self.id,
                     severity=self.severity,
                     title="Agent invoked repeatedly",
                     detail=(
@@ -106,7 +106,7 @@ class AgentLoopRule(Rule):
                     insights.append(Insight(
                         workspace_id=graph.workspace_id,
                         trace_id=graph.trace_id,
-                        rule_id=self.id,
+                        detector_id=self.id,
                         severity=self.severity,
                         title="Agent node executed repeatedly",
                         detail=(

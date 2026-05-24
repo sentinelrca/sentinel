@@ -26,7 +26,7 @@ class Insight(BaseModel):
     id:                  str = Field(default_factory=lambda: str(uuid.uuid4()))
     workspace_id:        str
     trace_id:            str
-    rule_id:             str
+    detector_id:         str
     severity:            Severity
     title:               str
     detail:              str

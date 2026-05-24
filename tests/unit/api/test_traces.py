@@ -17,14 +17,14 @@ _T0 = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
 
 def _insight_row(
     trace_id: str = "trace-001",
-    rule_id: str = "retry_storm",
+    detector_id: str = "retry_storm",
     severity: str = "high",
     created_at: datetime | None = None,
 ):
     row = MagicMock()
     row.id = "ins-1"
     row.trace_id = trace_id
-    row.rule_id = rule_id
+    row.detector_id = detector_id
     row.severity = severity
     row.title = "Test insight"
     row.detail = "detail"
@@ -87,14 +87,14 @@ def _mock_session_insights(rows: list):
 def _group(
     trace_id: str,
     insight_count: int,
-    rule_ids: list[str],
+    detector_ids: list[str],
     severities: list[str],
     latest: datetime | None = None,
 ):
     g = MagicMock()
     g.trace_id = trace_id
     g.insight_count = insight_count
-    g.rule_ids = rule_ids
+    g.detector_ids = detector_ids
     g.severities = severities
     g.latest_insight_at = latest or _T0
     return g
@@ -144,7 +144,7 @@ async def test_list_traces_returns_worst_severity():
     assert item["trace_id"] == "t1"
     assert item["worst_severity"] == "high"
     assert item["insight_count"] == 2
-    assert set(item["rule_ids"]) == {"retry_storm", "latency_spike"}
+    assert set(item["detector_ids"]) == {"retry_storm", "latency_spike"}
 
 
 @pytest.mark.asyncio
@@ -203,7 +203,7 @@ async def test_get_trace_insights_returns_all():
     body = resp.json()
     assert body["trace_id"] == "t5"
     assert body["total"] == 2
-    assert {i["rule_id"] for i in body["items"]} == {"retry_storm", "latency_spike"}
+    assert {i["detector_id"] for i in body["items"]} == {"retry_storm", "latency_spike"}
 
 
 @pytest.mark.asyncio
@@ -260,11 +260,11 @@ async def test_list_traces_rejects_limit_above_max():
 
 
 # ---------------------------------------------------------------------------
-# rule_ids deduplication
+# detector_ids deduplication
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_list_traces_deduplicates_rule_ids():
+async def test_list_traces_deduplicates_detector_ids():
     """When array_agg returns duplicate rule IDs, the response must deduplicate them."""
     groups = [_group("t6", 3, ["retry_storm", "retry_storm", "latency_spike"], ["high", "high", "warning"])]
     app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
@@ -273,12 +273,12 @@ async def test_list_traces_deduplicates_rule_ids():
             resp = await c.get("/v1/traces")
     app.dependency_overrides.clear()
     item = resp.json()["items"][0]
-    assert item["rule_ids"].count("retry_storm") == 1, "duplicate rule_ids must be removed"
-    assert set(item["rule_ids"]) == {"retry_storm", "latency_spike"}
+    assert item["detector_ids"].count("retry_storm") == 1, "duplicate detector_ids must be removed"
+    assert set(item["detector_ids"]) == {"retry_storm", "latency_spike"}
 
 
 @pytest.mark.asyncio
-async def test_list_traces_rule_ids_preserves_order():
+async def test_list_traces_detector_ids_preserves_order():
     """Dedup must preserve the first-seen order, not sort or reverse."""
     groups = [_group("t7", 4, ["b", "a", "b", "c"], ["info", "info", "info", "info"])]
     app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
@@ -286,7 +286,7 @@ async def test_list_traces_rule_ids_preserves_order():
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             resp = await c.get("/v1/traces")
     app.dependency_overrides.clear()
-    assert resp.json()["items"][0]["rule_ids"] == ["b", "a", "c"]
+    assert resp.json()["items"][0]["detector_ids"] == ["b", "a", "c"]
 
 
 # ---------------------------------------------------------------------------
@@ -336,6 +336,6 @@ async def test_get_trace_insights_insight_fields_complete():
             resp = await c.get("/v1/traces/t9/insights")
     app.dependency_overrides.clear()
     item = resp.json()["items"][0]
-    for field in ("id", "trace_id", "rule_id", "severity", "title", "detail",
+    for field in ("id", "trace_id", "detector_id", "severity", "title", "detail",
                   "recommendation", "affected_span_ids", "evidence", "status", "created_at"):
         assert field in item, f"missing field: {field}"

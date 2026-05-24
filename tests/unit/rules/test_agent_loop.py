@@ -3,9 +3,9 @@ from datetime import datetime, timedelta, timezone
 from sentinel_pipeline.models.span import NormalizedSpan, SpanKind, SpanStatus
 from sentinel_pipeline.graph.builder import build_graph
 from sentinel_pipeline.signals.extractor import extract_signals
-from sentinel_pipeline.rules.agent_loop import AgentLoopRule
+from sentinel_pipeline.detectors.agent_loop import AgentLoopDetector
 
-rule = AgentLoopRule()
+rule = AgentLoopDetector()
 
 
 def _agent_span(span_id, agent_name, parent_id=None, offset_ms=0):
@@ -31,8 +31,8 @@ def test_fires_on_repeated_agent():
     signals  = extract_signals(graph)
     insights = rule.evaluate(graph, signals)
     assert insights, "Expected insights for AgentA appearing 3 times"
-    rule_ids = [i.rule_id for i in insights]
-    assert all(r == "agent_loop" for r in rule_ids)
+    detector_ids = [i.detector_id for i in insights]
+    assert all(d == "agent_loop" for d in detector_ids)
 
 
 def test_no_fire_on_single_agent_twice():

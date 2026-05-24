@@ -67,12 +67,12 @@ class SourceRow(Base):
     created_at     = Column(DateTime(timezone=True), server_default=func.now())
 
 
-class RuleConfigRow(Base):
-    __tablename__ = "rule_configs"
+class DetectorConfigRow(Base):
+    __tablename__ = "detector_configs"
 
     id           = Column(String, primary_key=True)
     workspace_id = Column(String, nullable=False)
-    rule_id      = Column(String, nullable=False)
+    detector_id  = Column(String, nullable=False)
     action       = Column(String, nullable=False)   # 'DISABLED' | 'OVERRIDE_SEVERITY'
     severity     = Column(String, nullable=True)
     created_at   = Column(DateTime(timezone=True), server_default=func.now())
@@ -101,7 +101,7 @@ class InsightRow(Base):
     id                 = Column(String, primary_key=True)
     workspace_id       = Column(String, nullable=False, index=True)
     trace_id           = Column(String, nullable=False, index=True)
-    rule_id            = Column(String, nullable=False)
+    detector_id        = Column(String, nullable=False)
     severity           = Column(String, nullable=False)
     title              = Column(String, nullable=False)
     detail             = Column(Text,   nullable=False)

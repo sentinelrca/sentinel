@@ -5,36 +5,36 @@ import logging
 from sentinel_pipeline.models.graph import FlowGraph
 from sentinel_pipeline.models.insight import Insight, Severity, Tier
 from sentinel_pipeline.signals.extractor import extract_signals
-from sentinel_pipeline.rules import REGISTRY
+from sentinel_pipeline.detectors import DETECTOR_REGISTRY
 
 logger = logging.getLogger(__name__)
 
 
-def run_rules(
+def run_detectors(
     graph: FlowGraph,
     workspace_tier: Tier = Tier.FREE,
-    rule_overrides: dict[str, dict] | None = None,
+    detector_overrides: dict[str, dict] | None = None,
 ) -> list[Insight]:
     """
-    Run all rules applicable to workspace_tier against the flow graph.
+    Run all detectors applicable to workspace_tier against the flow graph.
 
-    rule_overrides maps rule_id → {action, severity} from workspace rule_configs:
-      DISABLED          → rule is skipped
+    detector_overrides maps detector_id → {action, severity} from workspace detector_configs:
+      DISABLED          → detector is skipped
       OVERRIDE_SEVERITY → insight severity replaced with configured value
 
-    Returns a flat list of insights. Rules that raise are logged and skipped.
+    Returns a flat list of insights. Detectors that raise are logged and skipped.
     """
-    overrides = rule_overrides or {}
+    overrides = detector_overrides or {}
     signals = extract_signals(graph)
-    applicable = [r for r in REGISTRY if r.tier <= workspace_tier]
+    applicable = [d for d in DETECTOR_REGISTRY if d.tier <= workspace_tier]
 
     all_insights: list[Insight] = []
-    for rule in applicable:
-        cfg = overrides.get(rule.id)
+    for detector in applicable:
+        cfg = overrides.get(detector.id)
         if cfg and cfg.get("action") == "DISABLED":
             continue
         try:
-            result = rule.evaluate(graph, signals)
+            result = detector.evaluate(graph, signals)
             if result:
                 if cfg and cfg.get("action") == "OVERRIDE_SEVERITY" and cfg.get("severity"):
                     result = [
@@ -43,6 +43,6 @@ def run_rules(
                     ]
                 all_insights.extend(result)
         except Exception:
-            logger.exception("Rule %s raised unexpectedly on trace %s", rule.id, graph.trace_id)
+            logger.exception("Detector %s raised unexpectedly on trace %s", detector.id, graph.trace_id)
 
     return all_insights

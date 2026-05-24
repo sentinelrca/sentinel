@@ -3,13 +3,13 @@ from __future__ import annotations
 from sentinel_pipeline.models.graph import FlowGraph
 from sentinel_pipeline.models.insight import Insight, Severity, Tier
 from sentinel_pipeline.signals.extractor import Signals
-from .base import Rule
+from .base import Detector
 
-# Minimum saving (ms) before the rule fires — avoids noise on fast tools
+# Minimum saving (ms) before the detector fires — avoids noise on fast tools
 _MIN_SAVED_MS: float = 500.0
 
 
-class SequentialToolsRule(Rule):
+class SequentialToolsDetector(Detector):
     id       = "sequential_tools"
     name     = "Sequential Tool Calls"
     severity = Severity.WARNING
@@ -26,7 +26,7 @@ class SequentialToolsRule(Rule):
             insights.append(Insight(
                 workspace_id=graph.workspace_id,
                 trace_id=graph.trace_id,
-                rule_id=self.id,
+                detector_id=self.id,
                 severity=self.severity,
                 title="Sequential tool calls can be parallelised",
                 detail=(

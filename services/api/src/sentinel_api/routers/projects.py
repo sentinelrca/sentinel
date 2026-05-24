@@ -243,7 +243,7 @@ async def get_project_insights(
         {
             "id": str(r.id),
             "trace_id": r.trace_id,
-            "rule_id": r.rule_id,
+            "detector_id": r.detector_id,
             "severity": r.severity,
             "title": r.title,
             "detail": r.detail,
@@ -283,7 +283,7 @@ async def get_project_traces(
             select(
                 InsightRow.trace_id,
                 func.count().label("insight_count"),
-                func.array_agg(InsightRow.rule_id).label("rule_ids"),
+                func.array_agg(InsightRow.detector_id).label("detector_ids"),
                 func.max(InsightRow.created_at).label("latest_insight_at"),
                 func.array_agg(InsightRow.severity).label("severities"),
             )
@@ -311,7 +311,7 @@ async def get_project_traces(
             "trace_id": g.trace_id,
             "worst_severity": worst,
             "insight_count": g.insight_count,
-            "rule_ids": list(dict.fromkeys(g.rule_ids)),
+            "detector_ids": list(dict.fromkeys(g.detector_ids)),
             "latest_insight_at": g.latest_insight_at.isoformat() if g.latest_insight_at else None,
             "span_count": span_stats["span_count"],
             "llm_calls": span_stats["llm_calls"],

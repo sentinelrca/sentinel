@@ -3,9 +3,9 @@ from datetime import datetime, timedelta, timezone
 from sentinel_pipeline.models.span import NormalizedSpan, SpanKind, SpanStatus
 from sentinel_pipeline.graph.builder import build_graph
 from sentinel_pipeline.signals.extractor import extract_signals
-from sentinel_pipeline.rules.sequential_tools import SequentialToolsRule
+from sentinel_pipeline.detectors.sequential_tools import SequentialToolsDetector
 
-rule = SequentialToolsRule()
+rule = SequentialToolsDetector()
 
 
 def _tool_span(span_id, parent_id, offset_ms, duration_ms=1000):
@@ -38,7 +38,7 @@ def test_fires_on_serial_independent_tools():
     signals  = extract_signals(graph)
     insights = rule.evaluate(graph, signals)
     assert insights, "Expected insight for serial tool_a → tool_b"
-    assert insights[0].rule_id == "sequential_tools"
+    assert insights[0].detector_id == "sequential_tools"
 
 
 def test_no_fire_below_threshold():
