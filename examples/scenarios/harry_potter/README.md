@@ -1,6 +1,6 @@
 # Dumbledore's Army — SentinelAI Example Scenarios
 
-Seven missions. Seven things that went wrong. Seven rules that caught them.
+Seven missions. Seven things that went wrong. Seven detectors that caught them.
 
 Dumbledore's Army (the DA) is SentinelAI's fictional multi-agent team — a group of
 well-intentioned agents coordinating covert operations against Voldemort. Each scenario
@@ -16,7 +16,7 @@ and tells you exactly what went wrong and why.
 
 ## The Cast
 
-| Agent | Role | Rule it demonstrates |
+| Agent | Role | Detector it demonstrates |
 |---|---|---|
 | **Hermione Granger** | Strategic planner / researcher | `agent_loop`, `sequential_tools` |
 | **Harry Potter** | Mission executor / orchestrator | `agent_loop`, `retry_storm` |
@@ -45,7 +45,7 @@ and tells you exactly what went wrong and why.
 
 ## The Missions
 
-| # | File | Mission | Rule triggered |
+| # | File | Mission | Detector triggered |
 |---|---|---|---|
 | 01 | `01_agent_loop/da_war_council.py` | The DA War Council | `agent_loop` |
 | 02 | `02_sequential_tools/two_owl_problem.py` | The Two-Owl Problem | `sequential_tools` |

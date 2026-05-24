@@ -21,7 +21,7 @@ Time wasted: Harry re-briefing instead of planning.
 
 ## SentinelAI insight
 
-**Rule:** `missing_session_memory`
+**Detector:** `missing_session_memory`
 **Severity:** MEDIUM
 **Detection:** 3 LLM_CALL turns in the same trace. Input tokens grew >50% from
 turn 1 to turn 3. No `pensieve_store` or `pensieve_recall` calls anywhere in the trace.

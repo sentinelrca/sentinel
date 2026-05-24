@@ -26,7 +26,7 @@ Langfuse and LangSmith show you a tree of spans. They tell you what your agent c
 - Why your costs are growing unbounded across a multi-turn session
 - That your agent has no memory layer and your users are repeating themselves
 
-SentinelRCA reconstructs the **call graph** from your traces and runs deterministic rules against it to surface specific, actionable fixes — across three dimensions:
+SentinelRCA reconstructs the **call graph** from your traces and runs deterministic detectors against it to surface specific, actionable fixes — across three dimensions:
 
 | Dimension | What it catches |
 |---|---|
@@ -66,11 +66,11 @@ cd services/ui && npm install && npm run dev   # http://localhost:3001
 
 ---
 
-## Rules (M1/M2 — all open source)
+## Detectors (M1/M2 — all open source)
 
 ### Diagnose — why it failed
 
-| Rule | Detects | Severity |
+| Detector | Detects | Severity |
 |---|---|---|
 | `agent_loop` | Same agent invoked 3+ times — infinite handoff | HIGH |
 | `retry_storm` | Same span retried 3+ times — rate limit or flaky tool | HIGH |
@@ -79,18 +79,18 @@ cd services/ui && npm install && npm run dev   # http://localhost:3001
 
 ### Optimize — what's inefficient
 
-| Rule | Detects | Severity |
+| Detector | Detects | Severity |
 |---|---|---|
 | `sequential_tools` | Two tools ran serially that could run in parallel | WARNING |
 | `context_cache_opportunity` | Input tokens growing unbounded across LLM calls | WARNING |
 
 ### Improve — architectural gaps
 
-| Rule | Detects | Severity |
+| Detector | Detects | Severity |
 |---|---|---|
 | `missing_session_memory` | Input tokens growing across turns with no memory tool calls — users are repeating themselves | WARNING |
 
-All rules operate on trace structure only — **no prompt or response content is ever stored by default**.
+All detectors operate on trace structure only — **no prompt or response content is ever stored by default**.
 
 ---
 
@@ -104,14 +104,14 @@ Source (LangSmith / Langfuse / OTLP)
       FlowGraph (NetworkX DiGraph)
         ↓  extract_signals()
          Signals
-        ↓  run_rules()
+        ↓  run_detectors()
       list[Insight]  ←  specific recommendation + evidence
 ```
 
 - **Connectors** — thin pull adapters, one per source, always free and open source
 - **Graph builder** — reconstructs parent-child tree, detects agent handoffs, cycle detection, clock skew correction
 - **Signal extractor** — critical path, sequential tool pairs, token growth, retry counts, session memory patterns
-- **Rule engine** — deterministic pattern matching, no LLMs involved in detection
+- **Detector engine** — deterministic pattern matching, no LLMs involved in detection
 
 ---
 
@@ -177,12 +177,12 @@ uv run --no-project pytest unit/ -v   # 58 tests, no Docker needed
 
 ## Roadmap
 
-- [x] M1 — Langfuse connector, flow graph, 2 rules, CLI
-- [x] M2 — LangSmith connector, 7 rules, web UI, PII-safe by default
+- [x] M1 — Langfuse connector, flow graph, 2 detectors, CLI
+- [x] M2 — LangSmith connector, 7 detectors, web UI, PII-safe by default
 - [ ] M3 — Arize + LangWatch connectors, docs, v1.0 GA, Starter billing
-- [ ] M4 — Rules 8–17, email/Slack/PagerDuty alerting, insight lifecycle
-- [ ] M5 — Cross-trace rules, workflow discovery, Pro tier
-- [ ] M6 — SSO, on-prem Helm, custom rule builder, enterprise tier
+- [ ] M4 — Detectors 8–17, email/Slack/PagerDuty alerting, insight lifecycle
+- [ ] M5 — Cross-trace detectors, workflow discovery, Pro tier
+- [ ] M6 — SSO, on-prem Helm, custom detector builder, enterprise tier
 
 ---
 
@@ -190,7 +190,7 @@ uv run --no-project pytest unit/ -v   # 58 tests, no Docker needed
 
 MIT — connectors and core pipeline.
 
-The commercial rule engine (`sentinel-engine`) is a separate private package. Free users get the 7 core rules above. See [pricing](https://sentinelrca.com) for the hosted version.
+The commercial detector engine (`sentinel-engine`) is a separate private package. Free users get the 7 core detectors above. See [pricing](https://sentinelrca.com) for the hosted version.
 
 ---
 

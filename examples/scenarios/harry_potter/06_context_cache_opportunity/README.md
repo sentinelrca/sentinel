@@ -17,7 +17,7 @@ static context to the LLM request — even when the question is "7pm or 8pm?"
 
 ## SentinelAI insight
 
-**Rule:** `context_cache_opportunity`
+**Detector:** `context_cache_opportunity`
 **Severity:** MEDIUM
 **Detection:** Consecutive LLM_CALL spans in the same trace with growing input_tokens
 where the token delta per turn is smaller than the static prefix size — indicating

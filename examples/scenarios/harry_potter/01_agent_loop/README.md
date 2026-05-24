@@ -16,7 +16,7 @@ HermioneAgent: "I cannot finalise the plan without a threat assessment. Harry, a
 
 ## SentinelAI insight
 
-**Rule:** `agent_loop`
+**Detector:** `agent_loop`
 **Severity:** HIGH
 **Detection:** `hermione_planner` and `harry_tactical` appear alternately in the flow graph,
 forming a cycle with no terminal node reached within the trace.
