@@ -11,6 +11,7 @@ from sentinel_pipeline.detectors.missing_termination_condition import MissingTer
 from sentinel_pipeline.detectors.token_cost_runaway import TokenCostRunawayDetector
 from sentinel_pipeline.detectors.retry_storm import RetryStormDetector
 from sentinel_pipeline.detectors.latency_spike import LatencySpikeDetector
+from sentinel_pipeline.detectors.context_cache_opportunity import ContextCacheOpportunityDetector
 
 DETECTOR_REGISTRY: list[Detector] = [
     AgentLoopDetector(),
@@ -19,6 +20,7 @@ DETECTOR_REGISTRY: list[Detector] = [
     TokenCostRunawayDetector(),
     RetryStormDetector(),
     LatencySpikeDetector(),
+    ContextCacheOpportunityDetector(),
 ]
 
 # Commercial engine hook: try to load additional detectors from sentinel_engine if installed.
