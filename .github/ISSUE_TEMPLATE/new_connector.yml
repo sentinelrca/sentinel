@@ -1,0 +1,53 @@
+name: New connector proposal
+description: Propose or claim a new trace source connector
+labels: ["connector", "enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Connectors are the highest-impact contribution — they make Sentinel useful to new communities.
+        Comment below to claim this connector before starting work so we don't duplicate effort.
+
+  - type: input
+    id: source
+    attributes:
+      label: Source name
+      placeholder: "e.g. Arize Phoenix, LangWatch, Weights & Biases Weave"
+    validations:
+      required: true
+
+  - type: input
+    id: docs_url
+    attributes:
+      label: API / export documentation URL
+      placeholder: "https://docs.arize.com/..."
+    validations:
+      required: false
+
+  - type: dropdown
+    id: ingestion_method
+    attributes:
+      label: How does this source expose traces?
+      options:
+        - REST API pull (like Langfuse, LangSmith)
+        - OTel/OTLP push
+        - SDK export / file export
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: span_types
+    attributes:
+      label: Span types available
+      description: What span kinds does this source expose? LLM calls, tool calls, agent invocations, retrievals?
+      placeholder: "LLM spans with token counts, tool spans, chain spans..."
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: claiming
+    attributes:
+      label: Are you planning to implement this?
+      options:
+        - label: Yes, I'd like to claim this connector and submit a PR
