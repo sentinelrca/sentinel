@@ -1,4 +1,4 @@
-"""Rule configs router — workspace-level rule overrides."""
+"""Detector configs router — workspace-level detector overrides."""
 from __future__ import annotations
 
 import uuid
@@ -8,37 +8,37 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import delete, select
 
-from sentinel_pipeline.db.postgres import RuleConfigRow, WorkspaceRow, get_session
+from sentinel_pipeline.db.postgres import DetectorConfigRow, WorkspaceRow, get_session
 
 from ..middleware.auth import get_workspace
 
-router = APIRouter(prefix="/rule-configs", tags=["rule-configs"])
+router = APIRouter(prefix="/detector-configs", tags=["detector-configs"])
 
 _VALID_ACTIONS = {"DISABLED", "OVERRIDE_SEVERITY"}
 _VALID_SEVERITIES = {"critical", "high", "warning", "info"}
 
 
-class RuleConfigUpsert(BaseModel):
+class DetectorConfigUpsert(BaseModel):
     action: str
     severity: str | None = None
 
 
 @router.get("")
-async def list_rule_configs(
+async def list_detector_configs(
     workspace: WorkspaceRow = Depends(get_workspace),
 ) -> dict[str, Any]:
     async with get_session() as session:
         result = await session.execute(
-            select(RuleConfigRow).where(RuleConfigRow.workspace_id == workspace.id)
+            select(DetectorConfigRow).where(DetectorConfigRow.workspace_id == workspace.id)
         )
         rows = result.scalars().all()
     return {"items": [_row_to_dict(r) for r in rows]}
 
 
-@router.put("/{rule_id}", status_code=200)
-async def upsert_rule_config(
-    rule_id: str,
-    body: RuleConfigUpsert,
+@router.put("/{detector_id}", status_code=200)
+async def upsert_detector_config(
+    detector_id: str,
+    body: DetectorConfigUpsert,
     workspace: WorkspaceRow = Depends(get_workspace),
 ) -> dict[str, Any]:
     if body.action not in _VALID_ACTIONS:
@@ -49,9 +49,9 @@ async def upsert_rule_config(
 
     async with get_session() as session:
         result = await session.execute(
-            select(RuleConfigRow).where(
-                RuleConfigRow.workspace_id == workspace.id,
-                RuleConfigRow.rule_id == rule_id,
+            select(DetectorConfigRow).where(
+                DetectorConfigRow.workspace_id == workspace.id,
+                DetectorConfigRow.detector_id == detector_id,
             )
         )
         row = result.scalar_one_or_none()
@@ -59,10 +59,10 @@ async def upsert_rule_config(
             row.action = body.action
             row.severity = body.severity if body.action == "OVERRIDE_SEVERITY" else None
         else:
-            row = RuleConfigRow(
+            row = DetectorConfigRow(
                 id=str(uuid.uuid4()),
                 workspace_id=workspace.id,
-                rule_id=rule_id,
+                detector_id=detector_id,
                 action=body.action,
                 severity=body.severity if body.action == "OVERRIDE_SEVERITY" else None,
             )
@@ -73,27 +73,27 @@ async def upsert_rule_config(
     return _row_to_dict(row)
 
 
-@router.delete("/{rule_id}", status_code=204)
-async def delete_rule_config(
-    rule_id: str,
+@router.delete("/{detector_id}", status_code=204)
+async def delete_detector_config(
+    detector_id: str,
     workspace: WorkspaceRow = Depends(get_workspace),
 ) -> None:
     async with get_session() as session:
         result = await session.execute(
-            delete(RuleConfigRow)
+            delete(DetectorConfigRow)
             .where(
-                RuleConfigRow.workspace_id == workspace.id,
-                RuleConfigRow.rule_id == rule_id,
+                DetectorConfigRow.workspace_id == workspace.id,
+                DetectorConfigRow.detector_id == detector_id,
             )
-            .returning(RuleConfigRow.id)
+            .returning(DetectorConfigRow.id)
         )
         if result.rowcount == 0:
-            raise HTTPException(status_code=404, detail="Rule config not found")
+            raise HTTPException(status_code=404, detail="Detector config not found")
 
 
-def _row_to_dict(r: RuleConfigRow) -> dict[str, Any]:
+def _row_to_dict(r: DetectorConfigRow) -> dict[str, Any]:
     return {
-        "rule_id": r.rule_id,
+        "detector_id": r.detector_id,
         "action": r.action,
         "severity": r.severity,
         "created_at": r.created_at.isoformat() if r.created_at else None,

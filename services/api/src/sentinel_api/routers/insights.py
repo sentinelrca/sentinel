@@ -29,7 +29,7 @@ async def list_insights(
     limit:           int = Query(50, le=200),
     offset:          int = Query(0, ge=0),
     severity:        str | None = Query(None),
-    rule_id:         str | None = Query(None),
+    detector_id:     str | None = Query(None),
     trace_id:        str | None = Query(None),
     from_time:       datetime | None = Query(None),
     to_time:         datetime | None = Query(None),
@@ -45,8 +45,8 @@ async def list_insights(
             base = base.where(InsightRow.status == "open")
         if severity:
             base = base.where(InsightRow.severity == severity)
-        if rule_id:
-            base = base.where(InsightRow.rule_id == rule_id)
+        if detector_id:
+            base = base.where(InsightRow.detector_id == detector_id)
         if trace_id:
             base = base.where(InsightRow.trace_id == trace_id)
         if from_time:
@@ -125,7 +125,7 @@ def _row_to_dict(r: InsightRow) -> dict[str, Any]:
     return {
         "id": str(r.id),
         "trace_id": r.trace_id,
-        "rule_id": r.rule_id,
+        "detector_id": r.detector_id,
         "severity": r.severity,
         "title": r.title,
         "detail": r.detail,

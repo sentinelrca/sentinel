@@ -89,12 +89,12 @@ cd tests && uv run --no-project pytest unit/rules/ -v             # all rule tes
 3. Add a fixture trace at `tests/fixtures/<source>_sample.json`
 4. Add unit tests at `tests/unit/connectors/test_<source>.py`
 
-## Adding a rule
+## Adding a detector
 
-1. Create `services/pipeline/src/sentinel_pipeline/rules/<rule_name>.py`
-2. Implement the `Rule` ABC (`rules/base.py`)
-3. Register in `rules/__init__.py` `REGISTRY` list
-4. Write tests: one fixture that triggers the rule, one that must NOT trigger it
+1. Create `services/pipeline/src/sentinel_pipeline/detectors/<detector_name>.py`
+2. Implement the `Detector` ABC (`detectors/base.py`)
+3. Register in `detectors/__init__.py` `DETECTOR_REGISTRY` list
+4. Write tests: one fixture that triggers the detector, one that must NOT trigger it
 
 ## Key shared contracts
 

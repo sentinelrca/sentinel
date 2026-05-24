@@ -23,7 +23,7 @@ from rich.table import Table
 from sentinel_connectors.langfuse import LangfuseConnector
 from sentinel_pipeline.graph.builder import build_graph
 from sentinel_pipeline.models.insight import Insight, Severity, Tier
-from sentinel_pipeline.rules.runner import run_rules
+from sentinel_pipeline.detectors.runner import run_detectors
 
 console = Console()
 
@@ -61,7 +61,7 @@ def analyze(
     since_hours: int,
     output_format: str,
 ) -> None:
-    """Pull traces and run all rules. Exit 1 if any insights are found."""
+    """Pull traces and run all detectors. Exit 1 if any insights are found."""
     config  = _build_config(source, public_key, secret_key, base_url, project_id)
     since   = datetime.now(timezone.utc) - timedelta(hours=since_hours)
     insights = _run_analysis(source, config, since)
@@ -134,7 +134,7 @@ def _run_analysis(source: str, config: dict, since: datetime) -> list[Insight]:
 
     for trace_id, spans in traces.items():
         graph    = build_graph(spans)
-        insights = run_rules(graph, workspace_tier=Tier.FREE)
+        insights = run_detectors(graph, workspace_tier=Tier.FREE)
         all_insights.extend(insights)
 
     return all_insights
@@ -147,7 +147,7 @@ def _output(insights: list[Insight], fmt: str) -> None:
 
     table = Table(title=f"{len(insights)} insight(s) found", show_lines=True)
     table.add_column("Severity",       style="bold", no_wrap=True)
-    table.add_column("Rule",           style="dim")
+    table.add_column("Detector",       style="dim")
     table.add_column("Trace ID",       style="dim", no_wrap=True)
     table.add_column("Title",          max_width=40)
     table.add_column("Recommendation", max_width=60)
@@ -156,7 +156,7 @@ def _output(insights: list[Insight], fmt: str) -> None:
         color = _SEVERITY_COLORS.get(insight.severity, "white")
         table.add_row(
             f"[{color}]{insight.severity.value.upper()}[/{color}]",
-            insight.rule_id,
+            insight.detector_id,
             insight.trace_id[:16] + "…",
             insight.title,
             insight.recommendation,

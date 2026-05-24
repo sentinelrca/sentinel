@@ -74,7 +74,7 @@ async def test_analyze_uses_project_spans_not_live_spans():
         patch("sentinel_worker.tasks.analyze_project.fetch_project_spans",
               return_value=[row]) as mock_fetch,
         patch("sentinel_worker.tasks.analyze_project.build_graph") as mock_graph,
-        patch("sentinel_worker.tasks.analyze_project.run_rules", return_value=[]),
+        patch("sentinel_worker.tasks.analyze_project.run_detectors", return_value=[]),
         patch("sentinel_worker.tasks.analyze_project.get_session") as mock_session_cm,
     ):
         mock_graph.return_value = MagicMock()
@@ -134,7 +134,7 @@ async def test_analyze_returns_early_when_no_spans():
 
     with (
         patch("sentinel_worker.tasks.analyze_project.fetch_project_spans", return_value=[]),
-        patch("sentinel_worker.tasks.analyze_project.run_rules") as mock_rules,
+        patch("sentinel_worker.tasks.analyze_project.run_detectors") as mock_rules,
         patch("sentinel_worker.tasks.analyze_project.get_session") as mock_session_cm,
     ):
         _setup_session_sequence(mock_session_cm, [
@@ -161,7 +161,7 @@ async def test_analyze_persists_insights_with_project_id():
     mock_insight.id = "ins-1"
     mock_insight.workspace_id = "ws-1"
     mock_insight.trace_id = "t-1"
-    mock_insight.rule_id = "agent_loop"
+    mock_insight.detector_id = "agent_loop"
     mock_insight.severity = MagicMock(value="high")
     mock_insight.title = "Loop detected"
     mock_insight.detail = "..."
@@ -174,7 +174,7 @@ async def test_analyze_persists_insights_with_project_id():
     with (
         patch("sentinel_worker.tasks.analyze_project.fetch_project_spans", return_value=[row]),
         patch("sentinel_worker.tasks.analyze_project.build_graph", return_value=MagicMock()),
-        patch("sentinel_worker.tasks.analyze_project.run_rules", return_value=[mock_insight]),
+        patch("sentinel_worker.tasks.analyze_project.run_detectors", return_value=[mock_insight]),
         patch("sentinel_worker.tasks.analyze_project.get_session") as mock_session_cm,
     ):
         def _capture_add(session):
@@ -209,7 +209,7 @@ async def test_analyze_updates_last_analyzed_at():
     with (
         patch("sentinel_worker.tasks.analyze_project.fetch_project_spans", return_value=[row]),
         patch("sentinel_worker.tasks.analyze_project.build_graph", return_value=MagicMock()),
-        patch("sentinel_worker.tasks.analyze_project.run_rules", return_value=[]),
+        patch("sentinel_worker.tasks.analyze_project.run_detectors", return_value=[]),
         patch("sentinel_worker.tasks.analyze_project.get_session") as mock_session_cm,
     ):
         _setup_session_sequence(mock_session_cm, [
@@ -227,7 +227,7 @@ async def test_analyze_updates_last_analyzed_at():
 
 @pytest.mark.asyncio
 async def test_analyze_groups_spans_by_trace_and_runs_rules_per_trace():
-    """Spans from two different traces → run_rules called twice."""
+    """Spans from two different traces → run_detectors called twice."""
     spans = [_make_span(f"s-{i}", f"t-{i}") for i in range(2)]
     rows = [_span_row(s) for s in spans]
     project = _make_project(status="ready")
@@ -235,7 +235,7 @@ async def test_analyze_groups_spans_by_trace_and_runs_rules_per_trace():
     with (
         patch("sentinel_worker.tasks.analyze_project.fetch_project_spans", return_value=rows),
         patch("sentinel_worker.tasks.analyze_project.build_graph", return_value=MagicMock()),
-        patch("sentinel_worker.tasks.analyze_project.run_rules", return_value=[]) as mock_rules,
+        patch("sentinel_worker.tasks.analyze_project.run_detectors", return_value=[]) as mock_rules,
         patch("sentinel_worker.tasks.analyze_project.get_session") as mock_session_cm,
     ):
         _setup_session_sequence(mock_session_cm, [(project,), (project,), (), (None, project)])

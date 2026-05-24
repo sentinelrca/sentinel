@@ -114,7 +114,7 @@ async def test_process_trace_generates_insights():
     from sentinel_pipeline.models.span import NormalizedSpan, SpanKind, SpanStatus
     from sentinel_pipeline.graph.builder import build_graph
     from sentinel_pipeline.signals.extractor import extract_signals
-    from sentinel_pipeline.rules.runner import run_rules
+    from sentinel_pipeline.detectors.runner import run_detectors
 
     await ensure_tables()
     session_factory = await _pg_session()
@@ -150,7 +150,7 @@ async def test_process_trace_generates_insights():
     # Run the pipeline inline (no Celery needed for this assertion)
     graph = build_graph(spans)
     signals = extract_signals(graph)
-    insights = run_rules(graph)
+    insights = run_detectors(graph)
 
     assert insights, "Expected at least one insight for serial tool calls"
 
@@ -161,7 +161,7 @@ async def test_process_trace_generates_insights():
         for ins in insights:
             await session.execute(
                 text(
-                    "INSERT INTO insights (id, workspace_id, trace_id, rule_id, severity, "
+                    "INSERT INTO insights (id, workspace_id, trace_id, detector_id, severity, "
                     "title, detail, recommendation, affected_span_ids, evidence, status) "
                     "VALUES (:id, :ws, :tr, :rule, :sev, :title, '', '', '[]', :ev, 'open') "
                     "ON CONFLICT DO NOTHING"
@@ -170,7 +170,7 @@ async def test_process_trace_generates_insights():
                     "id": str(uuid.uuid4()),
                     "ws": workspace_id,
                     "tr": trace_id,
-                    "rule": ins.rule_id,
+                    "rule": ins.detector_id,
                     "sev": ins.severity.value,
                     "title": ins.title,
                     "ev": json.dumps(ins.evidence),

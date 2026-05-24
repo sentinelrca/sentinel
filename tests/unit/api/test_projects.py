@@ -433,11 +433,11 @@ def _mock_session_project_insights(project_row, insight_rows):
     return cm
 
 
-def _insight_row(project_id: str = "proj-1", rule_id: str = "retry_storm") -> MagicMock:
+def _insight_row(project_id: str = "proj-1", detector_id: str = "retry_storm") -> MagicMock:
     row = MagicMock()
     row.id = "ins-1"
     row.trace_id = "trace-001"
-    row.rule_id = rule_id
+    row.detector_id = detector_id
     row.severity = "high"
     row.title = "Test"
     row.detail = "detail"
@@ -455,7 +455,7 @@ async def test_get_project_insights_success():
     app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
 
     proj = _project_row()
-    insights = [_insight_row(), _insight_row(rule_id="latency_spike")]
+    insights = [_insight_row(), _insight_row(detector_id="latency_spike")]
     with patch("sentinel_api.routers.projects.get_session",
                return_value=_mock_session_project_insights(proj, insights)):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
@@ -465,7 +465,7 @@ async def test_get_project_insights_success():
     assert resp.status_code == 200
     body = resp.json()
     assert body["total"] == 2
-    assert {i["rule_id"] for i in body["items"]} == {"retry_storm", "latency_spike"}
+    assert {i["detector_id"] for i in body["items"]} == {"retry_storm", "latency_spike"}
     assert body["items"][0]["project_id"] == "proj-1"
 
 

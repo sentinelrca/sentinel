@@ -7,13 +7,13 @@ from sentinel_pipeline.models.insight import Insight, Severity, Tier
 from sentinel_pipeline.signals.extractor import Signals
 
 
-class Rule(ABC):
+class Detector(ABC):
     """
-    Base class for all detection rules.
+    Base class for all trace detectors.
 
-    Open source rules live in this package (tier=FREE).
-    Commercial rules live in the sentinel-engine package and append
-    themselves to REGISTRY at import time.
+    Open source detectors live in this package (tier=FREE).
+    Commercial detectors live in the sentinel-engine package and append
+    themselves to DETECTOR_REGISTRY at import time.
     """
 
     id:       str      # unique snake_case identifier, e.g. "agent_loop"
@@ -26,7 +26,7 @@ class Rule(ABC):
         """
         Analyse the flow graph and its pre-computed signals.
 
-        Return a list of Insight objects if the rule fires, or None / [] if not.
+        Return a list of Insight objects if the detector fires, or None / [] if not.
         Must never raise — return None on unexpected input.
         """
         ...

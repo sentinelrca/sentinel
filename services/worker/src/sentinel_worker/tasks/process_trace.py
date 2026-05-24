@@ -7,12 +7,12 @@ from datetime import datetime, timezone
 
 from sentinel_worker.main import app
 from sentinel_pipeline.db.clickhouse import fetch_trace_spans
-from sentinel_pipeline.db.postgres import get_session, InsightRow, RuleConfigRow
+from sentinel_pipeline.db.postgres import get_session, InsightRow, DetectorConfigRow
 from sqlalchemy import select
 from sentinel_pipeline.graph.builder import build_graph
 from sentinel_pipeline.models.span import NormalizedSpan, SpanKind, SpanStatus
 from sentinel_pipeline.models.insight import Tier
-from sentinel_pipeline.rules.runner import run_rules
+from sentinel_pipeline.detectors.runner import run_detectors
 
 logger = logging.getLogger(__name__)
 
@@ -44,18 +44,18 @@ async def _process_trace(workspace_id: str, trace_id: str, tier: Tier) -> dict:
     # 2. Deserialise to NormalizedSpan
     spans = [_row_to_span(row) for row in raw_rows]
 
-    # 3. Load workspace rule overrides
-    rule_overrides: dict[str, dict] = {}
+    # 3. Load workspace detector overrides
+    detector_overrides: dict[str, dict] = {}
     async with get_session() as session:
         cfg_result = await session.execute(
-            select(RuleConfigRow).where(RuleConfigRow.workspace_id == workspace_id)
+            select(DetectorConfigRow).where(DetectorConfigRow.workspace_id == workspace_id)
         )
         for cfg in cfg_result.scalars().all():
-            rule_overrides[cfg.rule_id] = {"action": cfg.action, "severity": cfg.severity}
+            detector_overrides[cfg.detector_id] = {"action": cfg.action, "severity": cfg.severity}
 
-    # 4. Build flow graph + run rules
+    # 4. Build flow graph + run detectors
     graph    = build_graph(spans)
-    insights = run_rules(graph, workspace_tier=tier, rule_overrides=rule_overrides)
+    insights = run_detectors(graph, workspace_tier=tier, detector_overrides=detector_overrides)
 
     if not insights:
         return {"trace_id": trace_id, "insights": 0}
@@ -67,7 +67,7 @@ async def _process_trace(workspace_id: str, trace_id: str, tier: Tier) -> dict:
                 id=insight.id,
                 workspace_id=insight.workspace_id,
                 trace_id=insight.trace_id,
-                rule_id=insight.rule_id,
+                detector_id=insight.detector_id,
                 severity=insight.severity.value,
                 title=insight.title,
                 detail=insight.detail,
