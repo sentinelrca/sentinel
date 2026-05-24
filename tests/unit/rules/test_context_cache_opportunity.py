@@ -108,15 +108,41 @@ def test_recommendation_is_model_specific_openai():
 
 
 def test_recommendation_is_model_specific_gemini():
+    """Gemini pro requires 4096+ tokens — use 5000 to clear the threshold."""
     spans = [
-        _llm("c1", model="gemini-1.5-pro", input_tokens=2048, offset_ms=0),
-        _llm("c2", model="gemini-1.5-pro", input_tokens=2048, offset_ms=1100),
+        _llm("c1", model="gemini-1.5-pro", input_tokens=5000, offset_ms=0),
+        _llm("c2", model="gemini-1.5-pro", input_tokens=5000, offset_ms=1100),
     ]
     graph = build_graph(spans)
     signals = extract_signals(graph)
     insights = detector.evaluate(graph, signals)
     assert insights
     assert "gemini" in insights[0].recommendation.lower()
+    assert "4,096" in insights[0].recommendation
+
+
+def test_recommendation_gemini_flash_mentions_1024():
+    """Gemini Flash has a 1024 token minimum — recommendation should reflect that."""
+    spans = [
+        _llm("c1", model="gemini-2.5-flash", input_tokens=2048, offset_ms=0),
+        _llm("c2", model="gemini-2.5-flash", input_tokens=2048, offset_ms=1100),
+    ]
+    graph = build_graph(spans)
+    signals = extract_signals(graph)
+    insights = detector.evaluate(graph, signals)
+    assert insights
+    assert "1,024" in insights[0].recommendation
+
+
+def test_no_fire_gemini_pro_below_4096():
+    """Gemini pro calls with < 4096 tokens should not fire (below provider minimum)."""
+    spans = [
+        _llm("c1", model="gemini-2.5-pro", input_tokens=2048, offset_ms=0),
+        _llm("c2", model="gemini-2.5-pro", input_tokens=2048, offset_ms=1100),
+    ]
+    graph = build_graph(spans)
+    signals = extract_signals(graph)
+    assert not detector.evaluate(graph, signals)
 
 
 # --- does not fire ---

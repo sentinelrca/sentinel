@@ -9,9 +9,20 @@ from sentinel_pipeline.signals.extractor import Signals
 from .base import Detector
 
 # --- Tunable thresholds (see M3+ for per-workspace config) ---
-_MIN_INPUT_TOKENS     = 1_024   # smaller inputs aren't worth caching
 _MIN_REPEATED_CALLS   = 2       # need at least 2 calls with similar input to flag
 _SIMILARITY_TOLERANCE = 0.05    # two calls are "same input" if within ±5% token count
+
+# Minimum input tokens before caching is worthwhile, per provider.
+# Sources: Anthropic docs (min 1024), OpenAI docs (min 1024 on GPT-4o+),
+# Google Gemini docs (Flash: 1024, Pro: 4096).
+_MIN_CACHE_TOKENS_DEFAULT = 1_024
+
+
+def _min_cache_tokens(model: str) -> int:
+    m = model.lower()
+    if "gemini" in m:
+        return 1_024 if "flash" in m else 4_096  # pro models require 4096
+    return _MIN_CACHE_TOKENS_DEFAULT  # Anthropic and OpenAI both require 1024
 
 
 class ContextCacheOpportunityDetector(Detector):
@@ -85,7 +96,7 @@ class ContextCacheOpportunityDetector(Detector):
 
             for cluster in clusters:
                 representative_tokens = cluster[0].input_tokens
-                if representative_tokens < _MIN_INPUT_TOKENS:
+                if representative_tokens < _min_cache_tokens(model):
                     continue
 
                 call_count    = len(cluster)
@@ -137,10 +148,12 @@ def _cache_recommendation(model: str) -> str:
             "Cache hits are billed at 50% of the standard input token price."
         )
     if "gemini" in m:
+        min_tok = "1,024" if "flash" in m else "4,096"
         return (
-            "Use the Google Gemini Context Caching API to cache large static content "
-            "(system instructions, documents, tool definitions) before your request loop. "
-            "Cached tokens cost ~75% less than uncached input tokens (Gemini 1.5+)."
+            f"Use the Google Gemini Context Caching API to cache large static content "
+            f"(system instructions, documents, tool definitions) before your request loop. "
+            f"Minimum cacheable size for this model is {min_tok} tokens. "
+            f"Cached tokens cost ~75% less than uncached input tokens (Gemini 2.5+)."
         )
     return (
         "Check if your model provider supports prompt caching or KV-cache reuse for "
