@@ -155,6 +155,19 @@ def test_no_fire_on_single_llm_call():
     assert detector.evaluate(graph, signals) is None
 
 
+def test_fires_on_unknown_model_above_default_threshold():
+    """Unknown provider falls back to 1024-token default and still fires."""
+    spans = [
+        _llm("c1", model="my-custom-llm-v2", input_tokens=2048, offset_ms=0),
+        _llm("c2", model="my-custom-llm-v2", input_tokens=2048, offset_ms=1100),
+    ]
+    graph = build_graph(spans)
+    signals = extract_signals(graph)
+    insights = detector.evaluate(graph, signals)
+    assert insights
+    assert "provider" in insights[0].recommendation.lower()
+
+
 def test_no_fire_below_min_input_tokens():
     """Small prompts (< 1024 tokens) are not worth caching."""
     spans = [

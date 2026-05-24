@@ -22,7 +22,10 @@ def _min_cache_tokens(model: str) -> int:
     m = model.lower()
     if "gemini" in m:
         return 1_024 if "flash" in m else 4_096  # pro models require 4096
-    return _MIN_CACHE_TOKENS_DEFAULT  # Anthropic and OpenAI both require 1024
+    if "claude" in m or "gpt" in m or "o1" in m or "o3" in m:
+        return 1_024
+    # Unknown provider — use conservative default; recommendation will advise checking docs
+    return _MIN_CACHE_TOKENS_DEFAULT
 
 
 class ContextCacheOpportunityDetector(Detector):
