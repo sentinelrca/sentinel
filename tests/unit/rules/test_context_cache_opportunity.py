@@ -224,3 +224,45 @@ def test_separate_insights_per_model():
     assert insights and len(insights) == 2
     models = {i.evidence["model"] for i in insights}
     assert "gpt-4o" in models and "claude-3-haiku" in models
+
+
+def test_model_none_fires_with_generic_recommendation():
+    """Spans with model=None are grouped as 'unknown' and use the generic recommendation."""
+    spans = [
+        NormalizedSpan(
+            span_id="c1", trace_id="t1", parent_span_id=None,
+            name="c1", kind=SpanKind.LLM_CALL, status=SpanStatus.OK,
+            start_time=_T0, end_time=_T0 + timedelta(milliseconds=1000),
+            workspace_id="ws1", model=None, input_tokens=2048, output_tokens=50,
+        ),
+        NormalizedSpan(
+            span_id="c2", trace_id="t1", parent_span_id=None,
+            name="c2", kind=SpanKind.LLM_CALL, status=SpanStatus.OK,
+            start_time=_T0 + timedelta(milliseconds=1100),
+            end_time=_T0 + timedelta(milliseconds=2100),
+            workspace_id="ws1", model=None, input_tokens=2048, output_tokens=50,
+        ),
+    ]
+    graph = build_graph(spans)
+    signals = extract_signals(graph)
+    insights = detector.evaluate(graph, signals)
+    assert insights
+    assert insights[0].evidence["model"] == "unknown"
+    assert "provider" in insights[0].recommendation.lower()
+
+
+def test_clustering_splits_when_tokens_drift_beyond_tolerance():
+    """Tokens drifting >5% from the cluster anchor start a new cluster."""
+    # Sorted: 4000, 4100, 4200 (within 5% of anchor 4000) → cluster of 3
+    # 4300 > 4000 * 1.05 = 4200 → new cluster of 1 → does not fire
+    spans = [
+        _llm("c1", input_tokens=4000, offset_ms=0),
+        _llm("c2", input_tokens=4100, offset_ms=1100),
+        _llm("c3", input_tokens=4200, offset_ms=2200),
+        _llm("c4", input_tokens=4300, offset_ms=3300),
+    ]
+    graph = build_graph(spans)
+    signals = extract_signals(graph)
+    insights = detector.evaluate(graph, signals)
+    assert insights and len(insights) == 1
+    assert insights[0].evidence["repeated_calls"] == 3  # c4 is in its own cluster, not merged
