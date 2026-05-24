@@ -1,0 +1,72 @@
+name: New detector proposal
+description: Propose a new failure pattern detector
+labels: ["detector", "enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before implementing a new detector, open this issue first so we can agree on the failure pattern, thresholds, and false positive risks.
+        All detectors must work without reading prompt content — structure, timing, and token counts only.
+
+  - type: input
+    id: detector_id
+    attributes:
+      label: Proposed detector ID
+      placeholder: "e.g. retry_storm"
+    validations:
+      required: true
+
+  - type: textarea
+    id: failure_pattern
+    attributes:
+      label: What failure does this detect?
+      description: Describe the specific failure mode in production agentic systems.
+      placeholder: "A single tool is retried 3+ times in a row, indicating a flaky dependency without circuit breaking..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: detection_signal
+    attributes:
+      label: Detection signal
+      description: How would this be detected structurally — span kinds, timing, token counts, graph patterns?
+      placeholder: "TOOL_INVOKE span with retry_count >= 3 in span attributes..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: threshold_rationale
+    attributes:
+      label: Threshold rationale
+      description: Why these specific thresholds? Cite a source, practitioner report, or measured data.
+      placeholder: "3 retries chosen because... (reference: LangChain community survey 2024)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: false_positives
+    attributes:
+      label: Known false positive risks
+      description: What legitimate traces could trigger this incorrectly?
+      placeholder: "Retry-until-success patterns on eventually-consistent operations..."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: tier
+    attributes:
+      label: Proposed tier
+      options:
+        - FREE (works without store_content)
+        - STARTER (requires cross-trace history)
+        - PRO (requires store_content=True)
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: content_free
+    attributes:
+      label: Content-free confirmation
+      options:
+        - label: This detector works without reading prompt text or LLM output content
+          required: true

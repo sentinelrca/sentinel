@@ -7,7 +7,7 @@ SentinelRCA connects to your existing observability tools (LangSmith, Langfuse, 
 ```
 $ sentinel analyze --source langsmith --api-key lsv2_pt_...
 
-  Rule                      Severity  Trace           Evidence
+  Detector                  Severity  Trace           Evidence
   ──────────────────────────────────────────────────────────────────────────
   agent_loop                HIGH      trace-abc123    PlannerAgent invoked 4×
   sequential_tools          WARNING   trace-def456    search_web + query_db could save 2.1s

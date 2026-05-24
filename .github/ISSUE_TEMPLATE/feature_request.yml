@@ -1,0 +1,42 @@
+name: Feature request
+description: Suggest an improvement or new capability
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      placeholder: "When I run sentinel analyze, I can't filter insights by severity..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: What would you like to see?
+      placeholder: "A --min-severity flag on the CLI that filters the output table..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you've considered
+      placeholder: "I tried using --format json and filtering with jq, but..."
+    validations:
+      required: false
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which area does this affect?
+      options:
+        - CLI
+        - API
+        - Web UI
+        - Detector engine
+        - Connector
+        - Infrastructure / self-hosting
+        - Other
+    validations:
+      required: true
