@@ -1,6 +1,6 @@
 # SentinelAI Examples
 
-Runnable multi-agent scenarios that deliberately trigger SentinelAI rules.
+Runnable multi-agent scenarios that deliberately trigger SentinelAI detectors.
 Each scenario is a real LangGraph agent making a real mistake — the kind your
 own agents might be making right now without you knowing.
 
@@ -44,12 +44,12 @@ python scenarios/harry_potter/05_retrieval_without_grounding/trelawneys_briefing
 # etc.
 ```
 
-Each script prints what went wrong and which SentinelAI rule would fire.
+Each script prints what went wrong and which SentinelAI detector would fire.
 Run `sentinel analyze` pointed at your backend to see the actual insight.
 
 ## The scenarios
 
-| # | Scenario | Rule | Severity |
+| # | Scenario | Detector | Severity |
 |---|---|---|---|
 | 01 | The DA War Council | `agent_loop` | HIGH |
 | 02 | The Two-Owl Problem | `sequential_tools` | MEDIUM |

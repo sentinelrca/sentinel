@@ -16,7 +16,7 @@ No backoff. No escalation. Just Dobby and the same spell, over and over.
 
 ## SentinelAI insight
 
-**Rule:** `retry_storm`
+**Detector:** `retry_storm`
 **Severity:** HIGH
 **Detection:** `alohomora` called 4 times within a single trace on the same target.
 `retry_count >= 3` on a single span group.

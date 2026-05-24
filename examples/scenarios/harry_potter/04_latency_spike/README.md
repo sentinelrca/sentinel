@@ -17,7 +17,7 @@ Snape stirs slowly, utterly unconcerned.
 
 ## SentinelAI insight
 
-**Rule:** `latency_spike`
+**Detector:** `latency_spike`
 **Severity:** HIGH
 **Detection:** `snape_potions` span duration / total trace duration > 0.50
 

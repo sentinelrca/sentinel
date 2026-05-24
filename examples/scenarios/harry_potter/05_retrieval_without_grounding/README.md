@@ -18,7 +18,7 @@ completely fabricated intelligence. The DA could get killed acting on it.
 
 ## SentinelAI insight
 
-**Rule:** `retrieval_without_grounding`
+**Detector:** `retrieval_without_grounding`
 **Severity:** CRITICAL
 **Detection:** `accio` (RETRIEVAL span) returned `[]`. The LLM_CALL span that follows
 still produced a non-empty response with no retrieved context to draw from.

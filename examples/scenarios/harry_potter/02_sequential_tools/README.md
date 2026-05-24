@@ -14,7 +14,7 @@ Fred and George, watching from across the room: *"He sent them one at a time, Ge
 
 ## SentinelAI insight
 
-**Rule:** `sequential_tools`
+**Detector:** `sequential_tools`
 **Severity:** MEDIUM
 **Detection:** `marauders_map` and `owl_post` both appear under the same parent span
 (`ron_coordinator`) with non-overlapping timestamps and no data flowing from one to the other.
