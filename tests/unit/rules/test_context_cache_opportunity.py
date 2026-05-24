@@ -1,0 +1,268 @@
+from datetime import datetime, timedelta, timezone
+
+from sentinel_pipeline.models.span import NormalizedSpan, SpanKind, SpanStatus
+from sentinel_pipeline.graph.builder import build_graph
+from sentinel_pipeline.signals.extractor import extract_signals
+from sentinel_pipeline.detectors.context_cache_opportunity import ContextCacheOpportunityDetector
+
+detector = ContextCacheOpportunityDetector()
+
+_T0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+
+def _llm(span_id, model="gpt-4o", input_tokens=None, output_tokens=50, offset_ms=0):
+    t0 = _T0 + timedelta(milliseconds=offset_ms)
+    return NormalizedSpan(
+        span_id=span_id, trace_id="t1", parent_span_id=None,
+        name=span_id, kind=SpanKind.LLM_CALL, status=SpanStatus.OK,
+        start_time=t0, end_time=t0 + timedelta(milliseconds=1000),
+        workspace_id="ws1",
+        model=model,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+    )
+
+
+def _tool(span_id, offset_ms=0):
+    t0 = _T0 + timedelta(milliseconds=offset_ms)
+    return NormalizedSpan(
+        span_id=span_id, trace_id="t1", parent_span_id=None,
+        name=span_id, kind=SpanKind.TOOL_INVOKE, status=SpanStatus.OK,
+        start_time=t0, end_time=t0 + timedelta(milliseconds=200),
+        workspace_id="ws1",
+    )
+
+
+# --- fires ---
+
+def test_fires_on_repeated_large_context_same_model():
+    """3 calls to same model with identical large input → should fire."""
+    spans = [
+        _llm("call_1", input_tokens=4096, offset_ms=0),
+        _llm("call_2", input_tokens=4096, offset_ms=1100),
+        _llm("call_3", input_tokens=4096, offset_ms=2200),
+    ]
+    graph = build_graph(spans)
+    signals = extract_signals(graph)
+    insights = detector.evaluate(graph, signals)
+    assert insights
+    assert insights[0].detector_id == "context_cache_opportunity"
+    ev = insights[0].evidence
+    assert ev["repeated_calls"] == 3
+    assert ev["input_tokens_per_call"] == 4096
+    assert ev["wasted_tokens"] == 4096 * 2
+
+
+def test_fires_within_similarity_tolerance():
+    """Input tokens within 5% of each other should be treated as same context."""
+    spans = [
+        _llm("call_1", input_tokens=4000, offset_ms=0),
+        _llm("call_2", input_tokens=4100, offset_ms=1100),  # 2.5% variance — same cluster
+        _llm("call_3", input_tokens=4050, offset_ms=2200),  # 1.25% variance — same cluster
+    ]
+    graph = build_graph(spans)
+    signals = extract_signals(graph)
+    insights = detector.evaluate(graph, signals)
+    assert insights, "Calls within 5% tolerance should cluster together"
+
+
+def test_evidence_reports_wasted_tokens():
+    """Wasted tokens = input_tokens × (calls - 1)."""
+    spans = [
+        _llm("c1", input_tokens=8192, offset_ms=0),
+        _llm("c2", input_tokens=8192, offset_ms=1100),
+        _llm("c3", input_tokens=8192, offset_ms=2200),
+        _llm("c4", input_tokens=8192, offset_ms=3300),
+    ]
+    graph = build_graph(spans)
+    signals = extract_signals(graph)
+    insights = detector.evaluate(graph, signals)
+    assert insights
+    assert insights[0].evidence["wasted_tokens"] == 8192 * 3
+
+
+# --- model-specific recommendation ---
+
+def test_recommendation_is_model_specific_claude():
+    spans = [
+        _llm("c1", model="claude-3-5-sonnet", input_tokens=2048, offset_ms=0),
+        _llm("c2", model="claude-3-5-sonnet", input_tokens=2048, offset_ms=1100),
+    ]
+    graph = build_graph(spans)
+    signals = extract_signals(graph)
+    insights = detector.evaluate(graph, signals)
+    assert insights
+    assert "cache_control" in insights[0].recommendation
+
+
+def test_recommendation_is_model_specific_openai():
+    spans = [
+        _llm("c1", model="gpt-4o", input_tokens=2048, offset_ms=0),
+        _llm("c2", model="gpt-4o", input_tokens=2048, offset_ms=1100),
+    ]
+    graph = build_graph(spans)
+    signals = extract_signals(graph)
+    insights = detector.evaluate(graph, signals)
+    assert insights
+    assert "automatic" in insights[0].recommendation.lower()
+
+
+def test_recommendation_is_model_specific_gemini():
+    """Gemini pro requires 4096+ tokens — use 5000 to clear the threshold."""
+    spans = [
+        _llm("c1", model="gemini-1.5-pro", input_tokens=5000, offset_ms=0),
+        _llm("c2", model="gemini-1.5-pro", input_tokens=5000, offset_ms=1100),
+    ]
+    graph = build_graph(spans)
+    signals = extract_signals(graph)
+    insights = detector.evaluate(graph, signals)
+    assert insights
+    assert "gemini" in insights[0].recommendation.lower()
+    assert "4,096" in insights[0].recommendation
+
+
+def test_recommendation_gemini_flash_mentions_1024():
+    """Gemini Flash has a 1024 token minimum — recommendation should reflect that."""
+    spans = [
+        _llm("c1", model="gemini-2.5-flash", input_tokens=2048, offset_ms=0),
+        _llm("c2", model="gemini-2.5-flash", input_tokens=2048, offset_ms=1100),
+    ]
+    graph = build_graph(spans)
+    signals = extract_signals(graph)
+    insights = detector.evaluate(graph, signals)
+    assert insights
+    assert "1,024" in insights[0].recommendation
+
+
+def test_no_fire_gemini_pro_below_4096():
+    """Gemini pro calls with < 4096 tokens should not fire (below provider minimum)."""
+    spans = [
+        _llm("c1", model="gemini-2.5-pro", input_tokens=2048, offset_ms=0),
+        _llm("c2", model="gemini-2.5-pro", input_tokens=2048, offset_ms=1100),
+    ]
+    graph = build_graph(spans)
+    signals = extract_signals(graph)
+    assert not detector.evaluate(graph, signals)
+
+
+# --- does not fire ---
+
+def test_no_fire_on_single_llm_call():
+    """Only one LLM call — nothing to compare against."""
+    spans = [_llm("only_call", input_tokens=4096)]
+    graph = build_graph(spans)
+    signals = extract_signals(graph)
+    assert detector.evaluate(graph, signals) is None
+
+
+def test_fires_on_unknown_model_above_default_threshold():
+    """Unknown provider falls back to 1024-token default and still fires."""
+    spans = [
+        _llm("c1", model="my-custom-llm-v2", input_tokens=2048, offset_ms=0),
+        _llm("c2", model="my-custom-llm-v2", input_tokens=2048, offset_ms=1100),
+    ]
+    graph = build_graph(spans)
+    signals = extract_signals(graph)
+    insights = detector.evaluate(graph, signals)
+    assert insights
+    assert "provider" in insights[0].recommendation.lower()
+
+
+def test_no_fire_below_min_input_tokens():
+    """Small prompts (< 1024 tokens) are not worth caching."""
+    spans = [
+        _llm("c1", input_tokens=200, offset_ms=0),
+        _llm("c2", input_tokens=200, offset_ms=1100),
+        _llm("c3", input_tokens=200, offset_ms=2200),
+    ]
+    graph = build_graph(spans)
+    signals = extract_signals(graph)
+    assert not detector.evaluate(graph, signals)
+
+
+def test_no_fire_on_tool_only_trace():
+    """No LLM calls → skip entirely."""
+    spans = [_tool("t1"), _tool("t2", offset_ms=300)]
+    graph = build_graph(spans)
+    signals = extract_signals(graph)
+    assert detector.evaluate(graph, signals) is None
+
+
+def test_no_fire_when_input_tokens_vary_widely():
+    """Calls with very different input sizes are different prompts — not a cache opportunity."""
+    spans = [
+        _llm("c1", input_tokens=1024, offset_ms=0),
+        _llm("c2", input_tokens=8192, offset_ms=1100),  # 8× larger — different prompt
+    ]
+    graph = build_graph(spans)
+    signals = extract_signals(graph)
+    assert not detector.evaluate(graph, signals)
+
+
+def test_no_fire_when_models_differ():
+    """Same input token count but different models → separate groups, each below threshold."""
+    spans = [
+        _llm("c1", model="gpt-4o",       input_tokens=4096, offset_ms=0),
+        _llm("c2", model="claude-3-haiku", input_tokens=4096, offset_ms=1100),
+    ]
+    graph = build_graph(spans)
+    signals = extract_signals(graph)
+    assert not detector.evaluate(graph, signals)
+
+
+def test_separate_insights_per_model():
+    """Two models each with repeated large contexts → two separate insights."""
+    spans = [
+        _llm("g1", model="gpt-4o",        input_tokens=4096, offset_ms=0),
+        _llm("g2", model="gpt-4o",        input_tokens=4096, offset_ms=1100),
+        _llm("c1", model="claude-3-haiku", input_tokens=2048, offset_ms=2200),
+        _llm("c2", model="claude-3-haiku", input_tokens=2048, offset_ms=3300),
+    ]
+    graph = build_graph(spans)
+    signals = extract_signals(graph)
+    insights = detector.evaluate(graph, signals)
+    assert insights and len(insights) == 2
+    models = {i.evidence["model"] for i in insights}
+    assert "gpt-4o" in models and "claude-3-haiku" in models
+
+
+def test_model_none_fires_with_generic_recommendation():
+    """Spans with model=None are grouped as 'unknown' and use the generic recommendation."""
+    spans = [
+        NormalizedSpan(
+            span_id="c1", trace_id="t1", parent_span_id=None,
+            name="c1", kind=SpanKind.LLM_CALL, status=SpanStatus.OK,
+            start_time=_T0, end_time=_T0 + timedelta(milliseconds=1000),
+            workspace_id="ws1", model=None, input_tokens=2048, output_tokens=50,
+        ),
+        NormalizedSpan(
+            span_id="c2", trace_id="t1", parent_span_id=None,
+            name="c2", kind=SpanKind.LLM_CALL, status=SpanStatus.OK,
+            start_time=_T0 + timedelta(milliseconds=1100),
+            end_time=_T0 + timedelta(milliseconds=2100),
+            workspace_id="ws1", model=None, input_tokens=2048, output_tokens=50,
+        ),
+    ]
+    graph = build_graph(spans)
+    signals = extract_signals(graph)
+    insights = detector.evaluate(graph, signals)
+    assert insights
+    assert insights[0].evidence["model"] == "unknown"
+    assert "provider" in insights[0].recommendation.lower()
+
+
+def test_clustering_splits_when_tokens_drift_beyond_tolerance():
+    """Tokens drifting >5% from the cluster anchor start a new cluster."""
+    # Sorted: 4000, 4100, 4200 (within 5% of anchor 4000) → cluster of 3
+    # 4300 > 4000 * 1.05 = 4200 → new cluster of 1 → does not fire
+    spans = [
+        _llm("c1", input_tokens=4000, offset_ms=0),
+        _llm("c2", input_tokens=4100, offset_ms=1100),
+        _llm("c3", input_tokens=4200, offset_ms=2200),
+        _llm("c4", input_tokens=4300, offset_ms=3300),
+    ]
+    graph = build_graph(spans)
+    signals = extract_signals(graph)
+    insights = detector.evaluate(graph, signals)
+    assert insights and len(insights) == 1
+    assert insights[0].evidence["repeated_calls"] == 3  # c4 is in its own cluster, not merged
