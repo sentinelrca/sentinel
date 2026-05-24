@@ -23,6 +23,7 @@ from sentinel_pipeline.models.span import (
     FlowEdge,
     NormalizedSpan,
     SpanKind,
+    SpanStatus,
 )
 from sentinel_pipeline.models.graph import FlowGraph
 
@@ -56,6 +57,11 @@ def build_graph(spans: list[NormalizedSpan]) -> FlowGraph:
 
     # Step 1: Timestamp normalization — correct clock-skewed children
     _normalize_timestamps(by_id)
+
+    # Step 1b: Structural retry inference — backfill retry_count when connectors
+    # don't emit it explicitly (e.g. LangSmith repeated child runs, Langfuse
+    # observations without metadata.retry_count).
+    _infer_structural_retries(by_id)
 
     # Step 2: Build edges
     edges: list[FlowEdge] = []
@@ -130,6 +136,47 @@ def _normalize_timestamps(by_id: dict[str, NormalizedSpan]) -> None:
             )
             span.start_time = parent.start_time
             span.end_time   = span.end_time + delta
+
+
+def _infer_structural_retries(by_id: dict[str, NormalizedSpan]) -> None:
+    """
+    Infer retry_count from graph structure for sources that don't emit it explicitly.
+
+    Pattern: multiple spans sharing the same (name, parent_span_id) where earlier
+    siblings have ERROR or TIMEOUT status — classic retry footprint in LangSmith
+    (repeated child runs) and un-instrumented Langfuse traces.
+
+    The final span in the group (last by start_time) receives:
+        retry_count = number of preceding failed siblings
+
+    Only applied when retry_count == 0 so explicit connector values are never
+    overwritten.
+    """
+    from collections import defaultdict
+
+    groups: dict[tuple[str, str | None], list[NormalizedSpan]] = defaultdict(list)
+    for span in by_id.values():
+        groups[(span.name, span.parent_span_id)].append(span)
+
+    for group in groups.values():
+        if len(group) < 2:
+            continue
+
+        group.sort(key=lambda s: s.start_time)
+        failed_predecessors = sum(
+            1 for s in group[:-1]
+            if s.status in (SpanStatus.ERROR, SpanStatus.TIMEOUT)
+        )
+        if failed_predecessors == 0:
+            continue
+
+        final = group[-1]
+        if final.retry_count == 0:
+            final.retry_count = failed_predecessors
+            logger.debug(
+                "Inferred %d structural retries on span %s (%s)",
+                failed_predecessors, final.span_id, final.name,
+            )
 
 
 def _detect_cycles(graph: FlowGraph) -> None:

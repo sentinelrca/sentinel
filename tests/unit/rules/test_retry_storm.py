@@ -60,6 +60,63 @@ def test_no_fire_when_no_retries():
     assert not insights
 
 
+# --- structural retry inference (no explicit retry_count from connector) ---
+
+def _struct_span(span_id, name, parent_id, status=SpanStatus.OK, offset_ms=0):
+    t0 = _T0 + timedelta(milliseconds=offset_ms)
+    return NormalizedSpan(
+        span_id=span_id, trace_id="t1", parent_span_id=parent_id,
+        name=name, kind=SpanKind.TOOL_INVOKE, status=status,
+        start_time=t0, end_time=t0 + timedelta(milliseconds=500),
+        workspace_id="ws1",
+    )
+
+
+def test_structural_retry_inferred_from_sibling_errors():
+    """Three failed siblings + one success → inferred retry_count=3, meets threshold."""
+    root = _span("root", kind=SpanKind.CHAIN)
+    # Four attempts at "call_api" — first three fail, fourth succeeds
+    attempt_1 = _struct_span("a1", "call_api", "root", status=SpanStatus.ERROR,   offset_ms=0)
+    attempt_2 = _struct_span("a2", "call_api", "root", status=SpanStatus.TIMEOUT, offset_ms=600)
+    attempt_3 = _struct_span("a3", "call_api", "root", status=SpanStatus.ERROR,   offset_ms=1200)
+    attempt_4 = _struct_span("a4", "call_api", "root", status=SpanStatus.OK,      offset_ms=1800)
+    graph = build_graph([root, attempt_1, attempt_2, attempt_3, attempt_4])
+    signals = extract_signals(graph)
+    insights = detector.evaluate(graph, signals)
+    assert insights, "Expected retry_storm to fire via structural inference"
+    assert insights[0].evidence["max_retries"] == 3
+    assert "a4" in insights[0].affected_span_ids
+
+
+def test_structural_retry_not_inferred_when_all_succeed():
+    """Same tool called multiple times, all succeeding — not a retry, should not fire."""
+    root = _span("root", kind=SpanKind.CHAIN)
+    call_1 = _struct_span("c1", "search", "root", status=SpanStatus.OK, offset_ms=0)
+    call_2 = _struct_span("c2", "search", "root", status=SpanStatus.OK, offset_ms=600)
+    call_3 = _struct_span("c3", "search", "root", status=SpanStatus.OK, offset_ms=1200)
+    graph = build_graph([root, call_1, call_2, call_3])
+    signals = extract_signals(graph)
+    assert not detector.evaluate(graph, signals)
+
+
+def test_structural_retry_does_not_overwrite_explicit_retry_count():
+    """Explicit retry_count from connector must not be overwritten by structural inference."""
+    root = _span("root", kind=SpanKind.CHAIN)
+    # First attempt errors, second has explicit retry_count=1 from connector
+    attempt_1 = _struct_span("b1", "llm_call", "root", status=SpanStatus.ERROR, offset_ms=0)
+    attempt_2 = NormalizedSpan(
+        span_id="b2", trace_id="t1", parent_span_id="root",
+        name="llm_call", kind=SpanKind.TOOL_INVOKE, status=SpanStatus.OK,
+        start_time=_T0 + timedelta(milliseconds=600),
+        end_time=_T0 + timedelta(milliseconds=1100),
+        workspace_id="ws1",
+        retry_count=1,  # explicit from connector
+    )
+    graph = build_graph([root, attempt_1, attempt_2])
+    # retry_count should remain 1, not be overwritten with inferred value
+    assert graph.nodes["b2"].retry_count == 1
+
+
 def test_evidence_identifies_worst_span():
     """Evidence should point to the span with the highest retry count."""
     spans = [
