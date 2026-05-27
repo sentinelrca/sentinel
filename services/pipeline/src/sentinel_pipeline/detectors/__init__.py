@@ -12,6 +12,7 @@ from sentinel_pipeline.detectors.token_cost_runaway import TokenCostRunawayDetec
 from sentinel_pipeline.detectors.retry_storm import RetryStormDetector
 from sentinel_pipeline.detectors.latency_spike import LatencySpikeDetector
 from sentinel_pipeline.detectors.context_cache_opportunity import ContextCacheOpportunityDetector
+from sentinel_pipeline.detectors.retrieval_without_grounding import RetrievalWithoutGroundingDetector
 
 DETECTOR_REGISTRY: list[Detector] = [
     AgentLoopDetector(),
@@ -21,6 +22,7 @@ DETECTOR_REGISTRY: list[Detector] = [
     RetryStormDetector(),
     LatencySpikeDetector(),
     ContextCacheOpportunityDetector(),
+    RetrievalWithoutGroundingDetector(),
 ]
 
 # Commercial engine hook: try to load additional detectors from sentinel_engine if installed.

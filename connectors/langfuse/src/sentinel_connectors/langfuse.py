@@ -251,8 +251,13 @@ class LangfuseConnector(Connector):
             "langfuse.type":    obs_type,
             "langfuse.project": obs.get("projectId", ""),
         }
-        if store_content and isinstance(obs.get("input"), dict):
-            attributes["langfuse.input"] = obs["input"]
+        if store_content:
+            if isinstance(obs.get("input"), dict):
+                attributes["langfuse.input"]  = obs["input"]
+                attributes["gen_ai.input"]    = obs["input"]
+            if isinstance(obs.get("output"), (dict, str)):
+                attributes["langfuse.output"] = obs["output"]
+                attributes["gen_ai.output"]   = obs["output"]
 
         return NormalizedSpan(
             span_id=obs["id"],

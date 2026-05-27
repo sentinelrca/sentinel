@@ -252,8 +252,10 @@ class LangSmithConnector(Connector):
         if store_content:
             if isinstance(run.get("inputs"), dict):
                 attributes["langsmith.inputs"] = run["inputs"]
+                attributes["gen_ai.input"]     = run["inputs"]
             if isinstance(run.get("outputs"), dict):
                 attributes["langsmith.outputs"] = run["outputs"]
+                attributes["gen_ai.output"]     = run["outputs"]
 
         return NormalizedSpan(
             span_id=run["id"],
