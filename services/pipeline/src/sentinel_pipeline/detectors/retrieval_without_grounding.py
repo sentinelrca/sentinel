@@ -13,9 +13,16 @@ _MIN_INPUT_TOKENS_TO_CHECK = 500    # skip token growth check for very small pro
 
 # Tool invoke names that indicate retrieval when SpanKind.RETRIEVAL is absent.
 # Covers OTel-based frameworks (Google ADK, AutoGen) that emit retrieval as tool calls.
-_RETRIEVAL_NAME_PATTERNS = frozenset({
-    "retrieve", "search", "similarity_search", "vector_search",
-    "query", "lookup", "retriever",
+#
+# Two tiers:
+#   Substring — specific compound terms safe to match anywhere in the span name.
+#   Exact     — short generic words (e.g. "search") that are too common as prefixes /
+#               suffixes in unrelated tools (e.g. "search_docs", "lookup_table").
+_RETRIEVAL_SUBSTRING_PATTERNS = frozenset({
+    "similarity_search", "vector_search", "retriever", "retrieve",
+})
+_RETRIEVAL_EXACT_PATTERNS = frozenset({
+    "search", "query", "lookup",
 })
 
 
@@ -24,11 +31,14 @@ def _get_retrieval_spans(graph: FlowGraph) -> list[NormalizedSpan]:
     explicit = [s for s in graph.nodes.values() if s.kind == SpanKind.RETRIEVAL]
     if explicit:
         return explicit
-    return [
-        s for s in graph.nodes.values()
-        if s.kind == SpanKind.TOOL_INVOKE
-        and any(kw in s.name.lower() for kw in _RETRIEVAL_NAME_PATTERNS)
-    ]
+    result = []
+    for s in graph.nodes.values():
+        if s.kind != SpanKind.TOOL_INVOKE:
+            continue
+        name = s.name.lower()
+        if name in _RETRIEVAL_EXACT_PATTERNS or any(kw in name for kw in _RETRIEVAL_SUBSTRING_PATTERNS):
+            result.append(s)
+    return result
 
 
 def _token_overlap(a: str, b: str) -> float:
@@ -48,6 +58,22 @@ def _content_str(value: object) -> str:
     if isinstance(value, list):
         return " ".join(str(item) for item in value)
     return str(value) if value else ""
+
+
+def _has_content_data(
+    retrieval_spans: list[NormalizedSpan],
+    llm_spans: list[NormalizedSpan],
+) -> bool:
+    """Return True if at least one retrieval-LLM pair has non-empty content to compare."""
+    for ret_span in retrieval_spans:
+        if not _content_str(ret_span.attributes.get("gen_ai.input", "")).strip():
+            continue
+        for llm_span in llm_spans:
+            if llm_span.start_time <= ret_span.end_time:
+                continue
+            if _content_str(llm_span.attributes.get("gen_ai.output", "")).strip():
+                return True
+    return False
 
 
 class RetrievalWithoutGroundingDetector(Detector):
@@ -87,17 +113,23 @@ class RetrievalWithoutGroundingDetector(Detector):
 
         llm_spans = [s for s in graph.nodes.values() if s.kind == SpanKind.LLM_CALL]
 
-        # Try content-based check first
+        # Content check: Jaccard overlap between retrieved text and LLM response.
         insight = self._check_with_content(graph, retrieval_spans, llm_spans)
         if insight is not None:
             return [insight]
 
-        # Fall back to structural check
+        # If content was available and the check passed, grounding is confirmed — skip
+        # structural heuristics (which could fire false positives, e.g. token growth below
+        # threshold even when the LLM demonstrably used the retrieved content).
+        if _has_content_data(retrieval_spans, llm_spans):
+            return []
+
+        # Structural fallback: no content stored, rely on timing + token counts.
         insight = self._check_structural(graph, retrieval_spans, llm_spans)
         if insight is not None:
             return [insight]
 
-        return None
+        return []
 
     # ------------------------------------------------------------------
 

@@ -197,6 +197,24 @@ def test_structural_mode_fires_warning_severity():
     assert insights[0].severity.value == "warning"
 
 
+# --- content mode short-circuits structural ---
+
+def test_no_false_positive_when_content_grounded_but_no_token_growth():
+    """Content overlap is high (grounding confirmed), even though input tokens barely grew.
+    Structural mode must NOT fire when content analysis already confirmed the retrieval was used."""
+    doc = "The refund policy allows returns within 30 days of purchase with a valid receipt"
+    response = "According to the refund policy, returns within 30 days are accepted with receipt"
+    spans = [
+        _llm("llm_before", offset_ms=0,    input_tokens=1000),           # baseline
+        _retrieval("ret",   offset_ms=1100, content=doc),
+        _llm("llm_after",  offset_ms=1500, input_tokens=1010,            # <10% growth
+             output_content=response),                                    # but content matches
+    ]
+    graph = build_graph(spans)
+    signals = extract_signals(graph)
+    assert not detector.evaluate(graph, signals)
+
+
 # --- OTel / name-pattern fallback ---
 
 def test_fires_on_tool_invoke_with_retrieval_name():
@@ -229,3 +247,22 @@ def test_no_fire_on_unrelated_tool_invoke():
     graph = build_graph(spans)
     signals = extract_signals(graph)
     assert not detector.evaluate(graph, signals)
+
+
+def test_no_fire_on_tool_invoke_with_search_in_compound_name():
+    """'search_docs' contains 'search' but is not an exact match — must not trigger."""
+    spans = [
+        _tool_retrieve("t1", name="search_docs", offset_ms=0),
+        _tool("other", offset_ms=400),
+    ]
+    graph = build_graph(spans)
+    signals = extract_signals(graph)
+    assert not detector.evaluate(graph, signals)
+
+
+def test_fires_on_tool_invoke_named_exactly_search():
+    """TOOL_INVOKE named exactly 'search' (exact match) triggers the fallback."""
+    spans = [_tool_retrieve("r1", name="search", offset_ms=0)]
+    graph = build_graph(spans)
+    signals = extract_signals(graph)
+    assert detector.evaluate(graph, signals)

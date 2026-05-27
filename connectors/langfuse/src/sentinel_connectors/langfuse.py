@@ -252,7 +252,7 @@ class LangfuseConnector(Connector):
             "langfuse.project": obs.get("projectId", ""),
         }
         if store_content:
-            if isinstance(obs.get("input"), dict):
+            if isinstance(obs.get("input"), (dict, str)):
                 attributes["langfuse.input"]  = obs["input"]
                 attributes["gen_ai.input"]    = obs["input"]
             if isinstance(obs.get("output"), (dict, str)):
