@@ -4,11 +4,11 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 
 from sentinel_pipeline.db.clickhouse import count_distinct_traces, fetch_trace_stats_batch
-from sentinel_pipeline.db.postgres import InsightRow, SourceRow, WorkspaceRow, get_session
+from sentinel_pipeline.db.postgres import InsightRow, ProjectRow, SourceRow, WorkspaceRow, get_session
 
 from ..middleware.auth import get_workspace
 
@@ -109,12 +109,19 @@ async def get_trace_insights(
         InsightRow.trace_id == trace_id,
         InsightRow.status == "open",
     ]
-    if project_id is not None:
-        filters.append(InsightRow.project_id == project_id)
-    else:
-        filters.append(InsightRow.project_id == None)
-
     async with get_session() as session:
+        if project_id is not None:
+            proj = await session.execute(
+                select(ProjectRow).where(
+                    ProjectRow.id == project_id,
+                    ProjectRow.workspace_id == workspace.id,
+                )
+            )
+            if proj.scalar_one_or_none() is None:
+                raise HTTPException(status_code=404, detail="Project not found")
+            filters.append(InsightRow.project_id == project_id)
+        else:
+            filters.append(InsightRow.project_id == None)
         rows_result = await session.execute(
             select(InsightRow)
             .where(*filters)
