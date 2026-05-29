@@ -7,8 +7,9 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import func, select
 
-from sentinel_pipeline.db.clickhouse import insert_project_spans
+from sentinel_pipeline.db.clickhouse import delete_project_spans, insert_project_spans
 from sentinel_pipeline.db.postgres import engine, ProjectRow, SourceRow, get_session
+from sentinel_pipeline.crypto import decrypt_config
 from sentinel_pipeline.limits import get_import_limits
 from sentinel_worker.main import app
 
@@ -115,12 +116,17 @@ async def _import_project_traces(
         logger.error("No connector for source kind '%s'", source.kind)
         return {"project_id": project_id, "error": "unknown_source_kind", "traces": 0, "spans": 0}
 
-    config = source.config_json
+    config = decrypt_config(source.config_json)
     filters: dict = project.filters or {}
     trace_ids: list[str] | None = filters.get("trace_ids")
     date_from_str: str | None = filters.get("date_from")
     date_to_str: str | None = filters.get("date_to")
     traces_per_import: int | None = limits.get("traces_per_import")
+
+    # Clear stale project_spans before re-import to prevent duplicate data accumulation.
+    # project_spans uses plain MergeTree (no dedup), so we must delete explicitly.
+    if project.import_count:
+        await asyncio.to_thread(delete_project_spans, project_id, workspace_id)
 
     total_spans = 0
     trace_ids_seen: set[str] = set()
