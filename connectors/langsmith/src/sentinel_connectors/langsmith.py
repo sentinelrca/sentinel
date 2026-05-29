@@ -79,7 +79,7 @@ class LangSmithConnector(Connector):
                 resp.raise_for_status()
             except httpx.HTTPError as exc:
                 logger.error("LangSmith pull failed: %s", exc)
-                return
+                raise
 
             data = resp.json()
             runs = data if isinstance(data, list) else data.get("runs", [])
@@ -132,7 +132,7 @@ class LangSmithConnector(Connector):
                 resp.raise_for_status()
             except httpx.HTTPError as exc:
                 logger.error("LangSmith pull_by_window failed: %s", exc)
-                return
+                raise
 
             data = resp.json()
             runs = data if isinstance(data, list) else data.get("runs", [])
@@ -229,11 +229,9 @@ class LangSmithConnector(Connector):
             token_usage.get("output_tokens") or 0
         )
 
-        # Agent name from tags or extra metadata
-        tags = run.get("tags") or []
         extra = run.get("extra") or {}
         metadata = extra.get("metadata") or {}
-        agent_name = metadata.get("agent_name") or metadata.get("agentName") or ""
+        agent_name = metadata.get("agent_name") or metadata.get("agentName") or None
 
         # Model name from serialized LLM or extra
         serialized = run.get("serialized") or {}
@@ -247,7 +245,7 @@ class LangSmithConnector(Connector):
         attributes: dict = {
             "langsmith.run_type": run_type,
             "langsmith.session_name": run.get("session_name", ""),
-            **(metadata or {}),
+            **{f"langsmith.metadata.{k}": v for k, v in metadata.items()},
         }
         if store_content:
             if isinstance(run.get("inputs"), dict):
@@ -265,8 +263,8 @@ class LangSmithConnector(Connector):
             start_time=start_time,
             end_time=end_time,
             workspace_id=workspace_id,
-            model=str(model),
-            agent_name=agent_name,
+            model=str(model) or None,
+            agent_name=agent_name or None,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             retry_count=int(metadata.get("retry_count", 0)),
