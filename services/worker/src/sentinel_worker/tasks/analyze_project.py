@@ -37,7 +37,23 @@ def analyze_project(self, project_id: str, workspace_id: str, workspace_tier: in
         return asyncio.run(_analyze_project(project_id, workspace_id, Tier(workspace_tier)))
     except Exception as exc:
         logger.exception("analyze_project failed for project %s: %s", project_id, exc)
+        if self.request.retries >= self.max_retries:
+            engine.sync_engine.dispose()
+            asyncio.run(_mark_project_error(project_id, workspace_id))
+            raise
         raise self.retry(exc=exc, countdown=2 ** self.request.retries)
+
+
+async def _mark_project_error(project_id: str, workspace_id: str) -> None:
+    async with get_session() as session:
+        proj = (await session.execute(
+            select(ProjectRow).where(
+                ProjectRow.id == project_id,
+                ProjectRow.workspace_id == workspace_id,
+            )
+        )).scalar_one_or_none()
+        if proj is not None:
+            proj.status = "error"
 
 
 async def _analyze_project(project_id: str, workspace_id: str, tier: Tier) -> dict:
