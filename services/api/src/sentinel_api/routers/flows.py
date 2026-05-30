@@ -5,16 +5,20 @@ import asyncio
 import json
 from typing import Any
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from sentinel_pipeline.db.clickhouse import fetch_project_trace_spans, fetch_trace_spans
-from sentinel_pipeline.db.postgres import WorkspaceRow
+from sentinel_pipeline.db.postgres import ProjectRow, WorkspaceRow, get_session
 from sentinel_pipeline.graph.builder import build_graph
 from sentinel_pipeline.models.span import NormalizedSpan, SpanKind, SpanStatus
+from sqlalchemy import select
 
 from ..middleware.auth import get_workspace
 
 router = APIRouter(prefix="/flows", tags=["flows"])
+logger = logging.getLogger(__name__)
 
 
 @router.get("/{trace_id}")
@@ -24,6 +28,15 @@ async def get_flow(
     workspace: WorkspaceRow = Depends(get_workspace),
 ) -> dict[str, Any]:
     if project_id:
+        async with get_session() as session:
+            proj = await session.execute(
+                select(ProjectRow).where(
+                    ProjectRow.id == project_id,
+                    ProjectRow.workspace_id == workspace.id,
+                )
+            )
+            if proj.scalar_one_or_none() is None:
+                raise HTTPException(status_code=404, detail="Project not found")
         raw_rows = await asyncio.to_thread(
             fetch_project_trace_spans, project_id, trace_id, workspace.id
         )
@@ -83,13 +96,23 @@ async def get_flow(
 
 
 def _row_to_span(row: dict) -> NormalizedSpan:
+    try:
+        kind = SpanKind(row["kind"])
+    except ValueError:
+        logger.warning("Unknown SpanKind %r for span %s — falling back to GENERIC", row["kind"], row["span_id"])
+        kind = SpanKind.GENERIC
+    try:
+        status = SpanStatus(row["status"])
+    except ValueError:
+        logger.warning("Unknown SpanStatus %r for span %s — falling back to OK", row["status"], row["span_id"])
+        status = SpanStatus.OK
     return NormalizedSpan(
         span_id=row["span_id"],
         trace_id=row["trace_id"],
         parent_span_id=row["parent_span_id"] or None,
         name=row["name"],
-        kind=SpanKind(row["kind"]),
-        status=SpanStatus(row["status"]),
+        kind=kind,
+        status=status,
         start_time=row["start_time"],
         end_time=row["end_time"],
         workspace_id=row["workspace_id"],

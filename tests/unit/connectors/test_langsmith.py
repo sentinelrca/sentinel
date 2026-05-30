@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+import httpx
 import pytest
 import respx
 from httpx import Response
@@ -182,12 +183,12 @@ def test_pull_paginates_via_cursor():
 
 
 @respx.mock
-def test_pull_stops_on_http_error():
+def test_pull_raises_on_http_error():
     respx.get("https://api.smith.langchain.com/api/v1/runs").mock(
         return_value=Response(401, json={"detail": "Unauthorized"})
     )
-    batches = list(connector.pull(_CONFIG, _SINCE, _WORKSPACE))
-    assert batches == []
+    with pytest.raises(httpx.HTTPStatusError):
+        list(connector.pull(_CONFIG, _SINCE, _WORKSPACE))
 
 
 @respx.mock
@@ -341,11 +342,12 @@ def test_pull_by_window_empty_response():
 
 
 @respx.mock
-def test_pull_by_window_stops_on_http_error():
+def test_pull_by_window_raises_on_http_error():
     respx.get("https://api.smith.langchain.com/api/v1/runs").mock(
         return_value=Response(500, text="error")
     )
-    assert list(connector.pull_by_window(_CONFIG, _SINCE, _UNTIL, _WORKSPACE)) == []
+    with pytest.raises(httpx.HTTPStatusError):
+        list(connector.pull_by_window(_CONFIG, _SINCE, _UNTIL, _WORKSPACE))
 
 
 # ---------------------------------------------------------------------------

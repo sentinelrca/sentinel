@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy import delete, select
 
 from sentinel_pipeline.db.postgres import SourceRow, WorkspaceRow, get_session
+from sentinel_pipeline.crypto import decrypt_config, encrypt_config
 from sentinel_connectors.langfuse import LangfuseConnector
 from sentinel_connectors.langsmith import LangSmithConnector
 
@@ -58,7 +59,7 @@ async def create_source(
             id=str(uuid.uuid4()),
             workspace_id=workspace.id,
             kind=body.kind,
-            config_json=body.config_json,
+            config_json=encrypt_config(body.config_json),
         )
         session.add(row)
         await session.flush()
@@ -88,9 +89,9 @@ async def delete_source(
 
 
 def _row_to_dict(r: SourceRow) -> dict[str, Any]:
-    config = dict(r.config_json or {})
-    # Redact secrets before sending to client
-    for key in ("secret_key", "api_key", "token", "password"):
+    config = dict(decrypt_config(r.config_json or {}))
+    for key in ("secret_key", "api_key", "token", "password",
+                "access_token", "bearer", "auth_token", "private_key", "client_secret"):
         if key in config:
             config[key] = "***"
     return {
