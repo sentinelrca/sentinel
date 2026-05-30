@@ -136,9 +136,10 @@ def _find_sequential_tools(graph: FlowGraph) -> list[SequentialToolPair]:
             # Check for data dependency: does b's input reference a's output?
             # Simple heuristic: if b starts after a ends → serial, no overlap
             if b.start_time >= a.end_time:
-                saved_ms = (b.start_time - a.end_time).total_seconds() * 1000
-                # The saving is b's full duration (it could have run in parallel)
-                parallel_saving = b.duration_ms
+                gap_ms = (b.start_time - a.end_time).total_seconds() * 1000
+                # Serial wall-clock = a + gap + b; parallel = max(a, b)
+                # Saving = min(a, b) + gap
+                parallel_saving = min(a.duration_ms, b.duration_ms) + gap_ms
                 pairs.append(SequentialToolPair(
                     span_id_a=a.span_id,
                     span_id_b=b.span_id,
