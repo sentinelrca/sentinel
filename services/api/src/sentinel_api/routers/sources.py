@@ -1,6 +1,7 @@
 """Sources router — manage observability source connections."""
 from __future__ import annotations
 
+import asyncio
 import uuid
 from typing import Any
 
@@ -51,7 +52,8 @@ async def create_source(
     if connector is None:
         raise HTTPException(status_code=400, detail=f"Unknown source kind '{body.kind}'")
 
-    if not connector.validate_config(body.config_json):
+    ok = await asyncio.to_thread(connector.validate_config, body.config_json)
+    if not ok:
         raise HTTPException(status_code=422, detail="Connection test failed — check credentials")
 
     async with get_session() as session:

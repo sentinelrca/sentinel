@@ -44,9 +44,17 @@ class MissingTerminationConditionDetector(Detector):
         if len(llm_calls) < _MIN_LLM_CALLS or len(agent_steps) < _MIN_AGENT_STEPS:
             return None
 
-        # Skip if agent_loop already fired — that detector handles cyclic unbounded runs
+        # Skip only when agent_loop will fire for the cycle (Path 1 requires >= 2 agents).
+        # A single-agent cycle must still be caught here.
         if graph.has_cycle:
-            return None
+            cycle_agents = {
+                graph.nodes[n].agent_name
+                for cycle in graph.cycles
+                for n in cycle
+                if n in graph.nodes and graph.nodes[n].agent_name
+            }
+            if len(cycle_agents) >= 2:
+                return None
 
         llm_span_ids = [s.span_id for s in llm_calls]
 
