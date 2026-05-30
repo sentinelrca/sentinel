@@ -417,16 +417,19 @@ async def test_import_project_quota_exceeded_returns_402():
 # ---------------------------------------------------------------------------
 
 def _mock_session_project_insights(project_row, insight_rows):
-    """Returns two execute calls: first for project lookup, second for insights."""
+    """Returns three execute calls: project lookup, COUNT, then paginated insights."""
     session = AsyncMock()
 
     proj_result = MagicMock()
     proj_result.scalar_one_or_none.return_value = project_row
 
+    count_result = MagicMock()
+    count_result.scalar_one.return_value = len(insight_rows)
+
     insights_result = MagicMock()
     insights_result.scalars.return_value.all.return_value = insight_rows
 
-    session.execute = AsyncMock(side_effect=[proj_result, insights_result])
+    session.execute = AsyncMock(side_effect=[proj_result, count_result, insights_result])
     cm = MagicMock()
     cm.__aenter__ = AsyncMock(return_value=session)
     cm.__aexit__ = AsyncMock(return_value=False)

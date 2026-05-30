@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Literal
 
 from celery import Celery
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import delete, func, select
 
@@ -215,6 +215,8 @@ async def analyze_project_endpoint(
 @router.get("/{project_id}/insights")
 async def get_project_insights(
     project_id: str,
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
     workspace: WorkspaceRow = Depends(get_workspace),
 ) -> dict[str, Any]:
     async with get_session() as session:
@@ -228,14 +230,22 @@ async def get_project_insights(
         if proj_result.scalar_one_or_none() is None:
             raise HTTPException(status_code=404, detail="Project not found")
 
+        base_where = (
+            InsightRow.workspace_id == workspace.id,
+            InsightRow.project_id == project_id,
+            InsightRow.status == "open",
+        )
+        total_result = await session.execute(
+            select(func.count()).select_from(InsightRow).where(*base_where)
+        )
+        total = total_result.scalar_one()
+
         rows_result = await session.execute(
             select(InsightRow)
-            .where(
-                InsightRow.workspace_id == workspace.id,
-                InsightRow.project_id == project_id,
-                InsightRow.status == "open",
-            )
+            .where(*base_where)
             .order_by(InsightRow.created_at.desc())
+            .limit(limit)
+            .offset(offset)
         )
         rows = rows_result.scalars().all()
 
@@ -257,7 +267,7 @@ async def get_project_insights(
         for r in rows
     ]
 
-    return {"items": items, "total": len(items)}
+    return {"items": items, "total": total}
 
 
 _SEVERITY_ORDER = {"critical": 4, "high": 3, "warning": 2, "info": 1}
@@ -266,6 +276,8 @@ _SEVERITY_ORDER = {"critical": 4, "high": 3, "warning": 2, "info": 1}
 @router.get("/{project_id}/traces")
 async def get_project_traces(
     project_id: str,
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
     workspace: WorkspaceRow = Depends(get_workspace),
 ) -> dict[str, Any]:
     """Return project insights grouped by trace_id, with span stats from project_spans."""
@@ -279,6 +291,16 @@ async def get_project_traces(
         if proj_result.scalar_one_or_none() is None:
             raise HTTPException(status_code=404, detail="Project not found")
 
+        base_where = (
+            InsightRow.workspace_id == workspace.id,
+            InsightRow.project_id == project_id,
+            InsightRow.status == "open",
+        )
+        total_result = await session.execute(
+            select(func.count(InsightRow.trace_id.distinct())).where(*base_where)
+        )
+        total = total_result.scalar_one()
+
         rows_result = await session.execute(
             select(
                 InsightRow.trace_id,
@@ -287,13 +309,11 @@ async def get_project_traces(
                 func.max(InsightRow.created_at).label("latest_insight_at"),
                 func.array_agg(InsightRow.severity).label("severities"),
             )
-            .where(
-                InsightRow.workspace_id == workspace.id,
-                InsightRow.project_id == project_id,
-                InsightRow.status == "open",
-            )
+            .where(*base_where)
             .group_by(InsightRow.trace_id)
             .order_by(func.max(InsightRow.created_at).desc())
+            .limit(limit)
+            .offset(offset)
         )
         groups = rows_result.all()
 
@@ -318,4 +338,4 @@ async def get_project_traces(
             "total_ms": span_stats["total_ms"],
         })
 
-    return {"items": items, "total": len(items)}
+    return {"items": items, "total": total}
