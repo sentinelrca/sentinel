@@ -27,8 +27,9 @@ from sentinel_pipeline.models.span import NormalizedSpan, SpanKind, SpanStatus
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_BASE_URL = "https://app.phoenix.arize.com"
-_PAGE_SIZE        = 100
+_DEFAULT_BASE_URL    = "https://app.phoenix.arize.com"
+_DEFAULT_PROJECT     = "default"
+_PAGE_SIZE           = 100
 
 _KIND_MAP: dict[str, SpanKind] = {
     "llm":       SpanKind.LLM_CALL,
@@ -63,7 +64,8 @@ class ArizePhoenixConnector(Connector):
 
     def validate_config(self, config: dict) -> bool:
         try:
-            resp = self._client(config).get("/v1/spans", params={"page[size]": 1})
+            project = config.get("project_name") or _DEFAULT_PROJECT
+            resp = self._client(config).get(f"/v1/projects/{project}/spans", params={"limit": 1})
             return resp.status_code == 200
         except Exception as exc:
             logger.warning("Arize Phoenix config validation failed: %s", exc)
@@ -78,21 +80,19 @@ class ArizePhoenixConnector(Connector):
         """Page through spans newer than `since` using cursor-based pagination."""
         client        = self._client(config)
         store_content = config.get("store_content", False)
-        project_name  = config.get("project_name")
+        project       = config.get("project_name") or _DEFAULT_PROJECT
         cursor: str | None = None
 
         while True:
             params: dict = {
-                "page[size]": _PAGE_SIZE,
+                "limit":      _PAGE_SIZE,
                 "start_time": _to_phoenix_ts(since),
             }
-            if project_name:
-                params["project_name"] = project_name
             if cursor:
-                params["page[cursor]"] = cursor
+                params["cursor"] = cursor
 
             try:
-                resp = client.get("/v1/spans", params=params)
+                resp = client.get(f"/v1/projects/{project}/spans", params=params)
                 resp.raise_for_status()
             except httpx.HTTPError as exc:
                 logger.error("Arize Phoenix pull failed: %s", exc)
@@ -126,23 +126,21 @@ class ArizePhoenixConnector(Connector):
         """Fetch spans within [since, until], stopping after `limit` spans."""
         client        = self._client(config)
         store_content = config.get("store_content", False)
-        project_name  = config.get("project_name")
+        project       = config.get("project_name") or _DEFAULT_PROJECT
         cursor: str | None = None
         total_yielded = 0
 
         while True:
             params: dict = {
-                "page[size]": _PAGE_SIZE,
+                "limit":      _PAGE_SIZE,
                 "start_time": _to_phoenix_ts(since),
                 "end_time":   _to_phoenix_ts(until),
             }
-            if project_name:
-                params["project_name"] = project_name
             if cursor:
-                params["page[cursor]"] = cursor
+                params["cursor"] = cursor
 
             try:
-                resp = client.get("/v1/spans", params=params)
+                resp = client.get(f"/v1/projects/{project}/spans", params=params)
                 resp.raise_for_status()
             except httpx.HTTPError as exc:
                 logger.error("Arize Phoenix pull_by_window failed: %s", exc)
@@ -177,6 +175,7 @@ class ArizePhoenixConnector(Connector):
         """Fetch all spans for the given trace IDs, one trace at a time."""
         client        = self._client(config)
         store_content = config.get("store_content", False)
+        project       = config.get("project_name") or _DEFAULT_PROJECT
 
         for trace_id in trace_ids:
             cursor: str | None = None
@@ -184,14 +183,14 @@ class ArizePhoenixConnector(Connector):
 
             while True:
                 params: dict = {
-                    "trace_id":   trace_id,
-                    "page[size]": _PAGE_SIZE,
+                    "trace_id": trace_id,
+                    "limit":    _PAGE_SIZE,
                 }
                 if cursor:
-                    params["page[cursor]"] = cursor
+                    params["cursor"] = cursor
 
                 try:
-                    resp = client.get("/v1/spans", params=params)
+                    resp = client.get(f"/v1/projects/{project}/spans", params=params)
                     resp.raise_for_status()
                 except httpx.HTTPError as exc:
                     logger.error(
