@@ -40,34 +40,23 @@ def _configure_langsmith() -> ObservabilityConfig:
 
 def _configure_arize_phoenix() -> ObservabilityConfig:
     _require("PHOENIX_HOST")
-    from opentelemetry import trace
-    from opentelemetry.sdk.trace import TracerProvider
-    from opentelemetry.sdk.trace.export import BatchSpanProcessor
-    from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+    from phoenix.otel import register
     from openinference.instrumentation.langchain import LangChainInstrumentor
 
     host    = os.environ["PHOENIX_HOST"].rstrip("/")
-    api_key = os.getenv("PHOENIX_API_KEY", "")
+    api_key = os.getenv("PHOENIX_API_KEY", "") or None
     project = os.getenv("PHOENIX_PROJECT_NAME", "default")
 
-    headers: dict = {"project-name": project}
-    if api_key:
-        headers["Authorization"] = f"Bearer {api_key}"
-
-    # Phoenix Cloud OTLP endpoint lives under the same space path as the REST API
-    exporter = OTLPSpanExporter(
+    # register() handles resource attributes, auth headers, and flush-on-exit.
+    # OTLP endpoint is the space-scoped /v1/traces path.
+    provider = register(
         endpoint=f"{host}/v1/traces",
-        headers=headers,
+        project_name=project,
+        api_key=api_key,
+        batch=False,    # SimpleSpanProcessor — reliable flush for short-lived scripts
+        verbose=False,
     )
-    provider = TracerProvider()
-    provider.add_span_processor(BatchSpanProcessor(exporter))
-    trace.set_tracer_provider(provider)
     LangChainInstrumentor().instrument(tracer_provider=provider)
-
-    # Ensure spans are exported before the process exits (short-lived scripts)
-    import atexit
-    atexit.register(provider.force_flush)
-    atexit.register(provider.shutdown)
 
     return ObservabilityConfig(backend="arize_phoenix", callbacks=[])
 
