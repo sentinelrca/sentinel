@@ -15,6 +15,7 @@ dependencies = [
     "sentinel-connectors-base",
     "sentinel-connectors-langfuse",
     "sentinel-connectors-langsmith",
+    "sentinel-connectors-arize",
     "clickhouse-driver>=0.2",
     "celery[redis]>=5.3",
 ]
@@ -24,6 +25,7 @@ sentinel-pipeline             = { path = "../../services/pipeline",   editable =
 sentinel-connectors-base      = { path = "../../connectors/_base",    editable = true }
 sentinel-connectors-langfuse  = { path = "../../connectors/langfuse", editable = true }
 sentinel-connectors-langsmith = { path = "../../connectors/langsmith", editable = true }
+sentinel-connectors-arize     = { path = "../../connectors/arize",    editable = true }
 
 [project.optional-dependencies]
 dev = [

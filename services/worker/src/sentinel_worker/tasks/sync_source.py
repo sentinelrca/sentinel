@@ -22,6 +22,9 @@ def _get_connector(kind: str):
         elif kind == "langsmith":
             from sentinel_connectors.langsmith import LangSmithConnector
             _CONNECTOR_MAP[kind] = LangSmithConnector()
+        elif kind == "arize_phoenix":
+            from sentinel_connectors.arize import ArizePhoenixConnector
+            _CONNECTOR_MAP[kind] = ArizePhoenixConnector()
     return _CONNECTOR_MAP.get(kind)
 
 

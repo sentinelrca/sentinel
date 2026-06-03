@@ -13,14 +13,16 @@ from sentinel_pipeline.db.postgres import SourceRow, WorkspaceRow, get_session
 from sentinel_pipeline.crypto import decrypt_config, encrypt_config
 from sentinel_connectors.langfuse import LangfuseConnector
 from sentinel_connectors.langsmith import LangSmithConnector
+from sentinel_connectors.arize import ArizePhoenixConnector
 
 from ..middleware.auth import get_workspace
 
 router = APIRouter(prefix="/sources", tags=["sources"])
 
 _CONNECTORS = {
-    "langfuse":   LangfuseConnector(),
-    "langsmith":  LangSmithConnector(),
+    "langfuse":       LangfuseConnector(),
+    "langsmith":      LangSmithConnector(),
+    "arize_phoenix":  ArizePhoenixConnector(),
 }
 
 
