@@ -38,7 +38,7 @@ export interface InsightFilters {
   limit?: number;
   offset?: number;
   severity?: string;
-  rule_id?: string;
+  detector_id?: string;
   trace_id?: string;
   from_time?: string;
   to_time?: string;
@@ -49,7 +49,7 @@ export async function getInsights(filters: InsightFilters = {}): Promise<Insight
   if (filters.limit !== undefined) params.set("limit", String(filters.limit));
   if (filters.offset !== undefined) params.set("offset", String(filters.offset));
   if (filters.severity) params.set("severity", filters.severity);
-  if (filters.rule_id) params.set("rule_id", filters.rule_id);
+  if (filters.detector_id) params.set("detector_id", filters.detector_id);
   if (filters.trace_id) params.set("trace_id", filters.trace_id);
   if (filters.from_time) params.set("from_time", filters.from_time);
   if (filters.to_time) params.set("to_time", filters.to_time);

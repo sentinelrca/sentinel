@@ -43,7 +43,7 @@ function makeInsight(id: string, ruleId: string, spanId: string): Insight {
   return {
     id,
     trace_id: "trace-abc",
-    rule_id: ruleId,
+    detector_id: ruleId,
     severity: "high",
     title: `${ruleId} detected`,
     detail: "detail",

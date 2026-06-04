@@ -87,12 +87,12 @@ export default function SpanDetailPanel({ span, insights, onClose }: Props) {
           <Section title="Flagged by">
             <div className="space-y-2">
               {flaggedBy.map((ins) => {
-                const summary = formatEvidence(ins.rule_id, ins.evidence);
+                const summary = formatEvidence(ins.detector_id, ins.evidence);
                 return (
                   <div key={ins.id} className="rounded border border-slate-200 bg-slate-50 p-2">
                     <div className="flex items-center gap-2">
                       <SeverityBadge severity={ins.severity} />
-                      <span className="font-mono text-xs text-slate-700">{ins.rule_id}</span>
+                      <span className="font-mono text-xs text-slate-700">{ins.detector_id}</span>
                     </div>
                     {summary && (
                       <p className="mt-1 text-xs text-slate-600">{summary}</p>

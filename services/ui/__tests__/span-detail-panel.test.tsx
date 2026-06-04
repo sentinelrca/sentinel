@@ -26,7 +26,7 @@ function makeInsight(spanId: string, overrides: Partial<Insight> = {}): Insight 
   return {
     id: "ins-001",
     trace_id: "trace-abc",
-    rule_id: "retry_storm",
+    detector_id: "retry_storm",
     severity: "high",
     title: "Retry storm detected",
     detail: "detail",

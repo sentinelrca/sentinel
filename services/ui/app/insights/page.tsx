@@ -2,7 +2,7 @@ import { getInsights } from "@/lib/api";
 import InsightFeed from "@/components/insight-feed";
 
 interface Props {
-  searchParams: { severity?: string; rule_id?: string; page?: string };
+  searchParams: { severity?: string; detector_id?: string; page?: string };
 }
 
 export default async function InsightsPage({ searchParams }: Props) {
@@ -17,7 +17,7 @@ export default async function InsightsPage({ searchParams }: Props) {
       limit,
       offset,
       severity: searchParams.severity,
-      rule_id: searchParams.rule_id,
+      detector_id: searchParams.detector_id,
     });
   } catch (e) {
     error = e instanceof Error ? e.message : "Failed to load insights";
@@ -42,7 +42,7 @@ export default async function InsightsPage({ searchParams }: Props) {
           page={page}
           limit={limit}
           currentSeverity={searchParams.severity}
-          currentRuleId={searchParams.rule_id}
+          currentRuleId={searchParams.detector_id}
         />
       )}
     </div>

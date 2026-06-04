@@ -47,8 +47,8 @@ export default function TraceDetailClient({ flow, insights: initialInsights, tra
     const snapshot = insights;
     let nextSelected = selectedInsightId;
     setInsights((prev) => {
-      const next = prev.filter((i) => i.rule_id !== ruleId);
-      if (prev.find((i) => i.id === selectedInsightId)?.rule_id === ruleId) {
+      const next = prev.filter((i) => i.detector_id !== ruleId);
+      if (prev.find((i) => i.id === selectedInsightId)?.detector_id === ruleId) {
         nextSelected = next[0]?.id ?? null;
       }
       return next;
@@ -64,7 +64,7 @@ export default function TraceDetailClient({ flow, insights: initialInsights, tra
 
     if (applyToAll) {
       // Rule config affects future firings only — don't mutate existing insight severities
-      await putRuleConfig(insight.rule_id, { action: "OVERRIDE_SEVERITY", severity }).catch(
+      await putRuleConfig(insight.detector_id, { action: "OVERRIDE_SEVERITY", severity }).catch(
         () => setInsights(snapshot)
       );
     } else {
@@ -100,12 +100,12 @@ export default function TraceDetailClient({ flow, insights: initialInsights, tra
                   <div className="flex items-center gap-2">
                     <SeverityBadge severity={ins.severity} />
                   </div>
-                  <p className="mt-1 font-mono text-xs text-slate-700">{ins.rule_id}</p>
+                  <p className="mt-1 font-mono text-xs text-slate-700">{ins.detector_id}</p>
                   <p className="mt-0.5 text-xs text-slate-500 line-clamp-2">{ins.title}</p>
                 </div>
                 <IssueActionMenu
                   insightId={ins.id}
-                  ruleId={ins.rule_id}
+                  ruleId={ins.detector_id}
                   currentSeverity={ins.severity}
                   onIgnoreInstance={handleIgnoreInstance}
                   onIgnoreRule={handleIgnoreRule}
