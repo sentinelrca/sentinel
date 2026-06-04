@@ -2,8 +2,8 @@ import { getRuleConfigs } from "@/lib/api";
 import RulesSettingsClient from "./rules-settings-client";
 
 const RULE_CATALOG = [
-  { rule_id: "agent_loop",       name: "Agent Loop",                default_severity: "high",    description: "Detects cycles where agents hand off indefinitely without resolving." },
-  { rule_id: "sequential_tools", name: "Sequential Tools",          default_severity: "warning", description: "Detects independent tools run sequentially instead of in parallel." },
+  { detector_id: "agent_loop",       name: "Agent Loop",                default_severity: "high",    description: "Detects cycles where agents hand off indefinitely without resolving." },
+  { detector_id: "sequential_tools", name: "Sequential Tools",          default_severity: "warning", description: "Detects independent tools run sequentially instead of in parallel." },
 ];
 
 export default async function RulesSettingsPage() {
@@ -11,7 +11,7 @@ export default async function RulesSettingsPage() {
   try {
     const result = await getRuleConfigs();
     configs = Object.fromEntries(
-      result.items.map((c) => [c.rule_id, { action: c.action, severity: c.severity }])
+      result.items.map((c) => [c.detector_id, { action: c.action, severity: c.severity }])
     );
   } catch {
     // page still renders with defaults

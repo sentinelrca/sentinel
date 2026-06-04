@@ -14,7 +14,7 @@ export default function InsightCard({ insight }: { insight: Insight }) {
           <div className="mb-1.5 flex flex-wrap items-center gap-2">
             <SeverityBadge severity={insight.severity} />
             <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-600">
-              {insight.rule_id}
+              {insight.detector_id}
             </span>
           </div>
           <p className="truncate text-sm font-medium text-slate-900">{insight.title}</p>

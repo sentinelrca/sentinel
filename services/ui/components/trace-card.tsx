@@ -12,8 +12,8 @@ export default function TraceCard({
   trace: TraceSummary;
   projectId?: string;
 }) {
-  const extra = trace.rule_ids.length - MAX_RULES;
-  const visibleRules = trace.rule_ids.slice(0, MAX_RULES);
+  const extra = trace.detector_ids.length - MAX_RULES;
+  const visibleRules = trace.detector_ids.slice(0, MAX_RULES);
   const href = projectId
     ? `/traces/${trace.trace_id}?project_id=${encodeURIComponent(projectId)}`
     : `/traces/${trace.trace_id}`;

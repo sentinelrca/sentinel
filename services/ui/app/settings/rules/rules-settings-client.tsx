@@ -7,7 +7,7 @@ import { clsx } from "clsx";
 const SEVERITIES = ["critical", "high", "warning", "info"] as const;
 
 interface RuleEntry {
-  rule_id: string;
+  detector_id: string;
   name: string;
   default_severity: string;
   description: string;
@@ -28,28 +28,28 @@ export default function RulesSettingsClient({ rules, initialConfigs }: Props) {
   const [saving, setSaving] = useState<string | null>(null);
 
   function getEffectiveSeverity(rule: RuleEntry): string {
-    const cfg = configs[rule.rule_id];
+    const cfg = configs[rule.detector_id];
     if (cfg?.action === "OVERRIDE_SEVERITY" && cfg.severity) return cfg.severity;
     return rule.default_severity;
   }
 
-  function isDisabled(rule_id: string) {
-    return configs[rule_id]?.action === "DISABLED";
+  function isDisabled(detector_id: string) {
+    return configs[detector_id]?.action === "DISABLED";
   }
 
   function isModified(rule: RuleEntry) {
-    return !!configs[rule.rule_id];
+    return !!configs[rule.detector_id];
   }
 
   async function handleToggleDisabled(rule: RuleEntry) {
-    setSaving(rule.rule_id);
+    setSaving(rule.detector_id);
     try {
-      if (isDisabled(rule.rule_id)) {
-        await deleteRuleConfig(rule.rule_id);
-        setConfigs((prev) => { const n = { ...prev }; delete n[rule.rule_id]; return n; });
+      if (isDisabled(rule.detector_id)) {
+        await deleteRuleConfig(rule.detector_id);
+        setConfigs((prev) => { const n = { ...prev }; delete n[rule.detector_id]; return n; });
       } else {
-        await putRuleConfig(rule.rule_id, { action: "DISABLED" });
-        setConfigs((prev) => ({ ...prev, [rule.rule_id]: { action: "DISABLED", severity: null } }));
+        await putRuleConfig(rule.detector_id, { action: "DISABLED" });
+        setConfigs((prev) => ({ ...prev, [rule.detector_id]: { action: "DISABLED", severity: null } }));
       }
     } finally {
       setSaving(null);
@@ -57,20 +57,20 @@ export default function RulesSettingsClient({ rules, initialConfigs }: Props) {
   }
 
   async function handleSeverityChange(rule: RuleEntry, severity: string) {
-    setSaving(rule.rule_id);
+    setSaving(rule.detector_id);
     try {
-      await putRuleConfig(rule.rule_id, { action: "OVERRIDE_SEVERITY", severity });
-      setConfigs((prev) => ({ ...prev, [rule.rule_id]: { action: "OVERRIDE_SEVERITY", severity } }));
+      await putRuleConfig(rule.detector_id, { action: "OVERRIDE_SEVERITY", severity });
+      setConfigs((prev) => ({ ...prev, [rule.detector_id]: { action: "OVERRIDE_SEVERITY", severity } }));
     } finally {
       setSaving(null);
     }
   }
 
   async function handleReset(rule: RuleEntry) {
-    setSaving(rule.rule_id);
+    setSaving(rule.detector_id);
     try {
-      await deleteRuleConfig(rule.rule_id);
-      setConfigs((prev) => { const n = { ...prev }; delete n[rule.rule_id]; return n; });
+      await deleteRuleConfig(rule.detector_id);
+      setConfigs((prev) => { const n = { ...prev }; delete n[rule.detector_id]; return n; });
     } finally {
       setSaving(null);
     }
@@ -79,21 +79,21 @@ export default function RulesSettingsClient({ rules, initialConfigs }: Props) {
   return (
     <div className="divide-y divide-slate-200 rounded-lg border border-slate-200 bg-white">
       {rules.map((rule) => {
-        const disabled = isDisabled(rule.rule_id);
+        const disabled = isDisabled(rule.detector_id);
         const modified = isModified(rule);
         const effectiveSev = getEffectiveSeverity(rule);
-        const isSaving = saving === rule.rule_id;
+        const isSaving = saving === rule.detector_id;
 
         return (
           <div
-            key={rule.rule_id}
+            key={rule.detector_id}
             className={clsx("flex items-start gap-4 px-5 py-4", disabled && "opacity-50")}
           >
             {/* Info */}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <span className="font-medium text-slate-800">{rule.name}</span>
-                <span className="font-mono text-xs text-slate-400">{rule.rule_id}</span>
+                <span className="font-mono text-xs text-slate-400">{rule.detector_id}</span>
                 {disabled && (
                   <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
                     MUTED

@@ -53,7 +53,7 @@ export default async function InsightDetailPage({ params }: Props) {
         <div>
           <h1 className="text-xl font-semibold text-slate-900">{insight!.title}</h1>
           <p className="mt-0.5 text-sm text-slate-500">
-            Rule: <span className="font-mono">{insight!.rule_id}</span> &middot; Trace:{" "}
+            Rule: <span className="font-mono">{insight!.detector_id}</span> &middot; Trace:{" "}
             <span className="font-mono">{insight!.trace_id}</span>
           </p>
         </div>

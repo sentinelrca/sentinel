@@ -53,7 +53,7 @@ function makeTrace(overrides: Partial<TraceSummary> = {}): TraceSummary {
     trace_id: "trace-1",
     worst_severity: "high",
     insight_count: 2,
-    rule_ids: ["retry_storm"],
+    detector_ids: ["retry_storm"],
     latest_insight_at: new Date().toISOString(),
     span_count: 5,
     llm_calls: 2,

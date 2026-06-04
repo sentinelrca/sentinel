@@ -17,7 +17,7 @@ function makeTrace(overrides: Partial<TraceSummary> = {}): TraceSummary {
     trace_id: "trace-abc123",
     worst_severity: "high",
     insight_count: 2,
-    rule_ids: ["retry_storm", "latency_spike"],
+    detector_ids: ["retry_storm", "latency_spike"],
     latest_insight_at: new Date(Date.now() - 5 * 60_000).toISOString(), // 5 min ago
     span_count: 10,
     llm_calls: 3,
@@ -38,24 +38,24 @@ describe("TraceCard", () => {
   });
 
   it("shows all rule pills when count <= 4", () => {
-    render(<TraceCard trace={makeTrace({ rule_ids: ["retry_storm", "latency_spike"] })} />);
+    render(<TraceCard trace={makeTrace({ detector_ids: ["retry_storm", "latency_spike"] })} />);
     expect(screen.getByText("retry_storm")).toBeInTheDocument();
     expect(screen.getByText("latency_spike")).toBeInTheDocument();
     expect(screen.queryByText(/more/)).not.toBeInTheDocument();
   });
 
-  it("shows max 4 rule pills and a +N more badge when rule_ids exceeds 4", () => {
-    const rule_ids = ["a", "b", "c", "d", "e", "f"];
-    render(<TraceCard trace={makeTrace({ rule_ids })} />);
+  it("shows max 4 rule pills and a +N more badge when detector_ids exceeds 4", () => {
+    const detector_ids = ["a", "b", "c", "d", "e", "f"];
+    render(<TraceCard trace={makeTrace({ detector_ids })} />);
     expect(screen.getByText("a")).toBeInTheDocument();
     expect(screen.getByText("d")).toBeInTheDocument();
     expect(screen.queryByText("e")).not.toBeInTheDocument();
     expect(screen.getByText("+2 more")).toBeInTheDocument();
   });
 
-  it("shows exactly 4 pills and no overflow badge when rule_ids length is exactly 4", () => {
-    const rule_ids = ["a", "b", "c", "d"];
-    render(<TraceCard trace={makeTrace({ rule_ids })} />);
+  it("shows exactly 4 pills and no overflow badge when detector_ids length is exactly 4", () => {
+    const detector_ids = ["a", "b", "c", "d"];
+    render(<TraceCard trace={makeTrace({ detector_ids })} />);
     expect(screen.getByText("d")).toBeInTheDocument();
     expect(screen.queryByText(/more/)).not.toBeInTheDocument();
   });

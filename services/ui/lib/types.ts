@@ -3,7 +3,7 @@ export type Severity = "critical" | "high" | "warning" | "info";
 export interface Insight {
   id: string;
   trace_id: string;
-  rule_id: string;
+  detector_id: string;
   severity: Severity;
   title: string;
   detail: string;
@@ -64,7 +64,7 @@ export interface TraceSummary {
   trace_id: string;
   worst_severity: Severity;
   insight_count: number;
-  rule_ids: string[];
+  detector_ids: string[];
   latest_insight_at: string | null;
   span_count: number;
   llm_calls: number;
@@ -100,7 +100,7 @@ export interface SourceListResponse {
 }
 
 export interface RuleConfig {
-  rule_id: string;
+  detector_id: string;
   action: "DISABLED" | "OVERRIDE_SEVERITY";
   severity: string | null;
   created_at: string | null;
