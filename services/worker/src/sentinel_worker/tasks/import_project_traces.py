@@ -11,23 +11,10 @@ from sentinel_pipeline.db.clickhouse import delete_project_spans, insert_project
 from sentinel_pipeline.db.postgres import engine, ProjectRow, SourceRow, get_session
 from sentinel_pipeline.crypto import decrypt_config
 from sentinel_pipeline.limits import get_import_limits
+from sentinel_pipeline.connectors import get_connector
 from sentinel_worker.main import app
 
 logger = logging.getLogger(__name__)
-
-_CONNECTOR_MAP: dict = {}
-
-
-def _get_connector(kind: str):
-    """Lazy-load connectors to keep startup fast and avoid circular imports."""
-    if kind not in _CONNECTOR_MAP:
-        if kind == "langfuse":
-            from sentinel_connectors.langfuse import LangfuseConnector
-            _CONNECTOR_MAP[kind] = LangfuseConnector()
-        elif kind == "langsmith":
-            from sentinel_connectors.langsmith import LangSmithConnector
-            _CONNECTOR_MAP[kind] = LangSmithConnector()
-    return _CONNECTOR_MAP.get(kind)
 
 
 @app.task(bind=True, name="import_project_traces", max_retries=3)
@@ -104,7 +91,7 @@ async def _import_project_traces(
         # Mark importing — commit before pulling so a crash leaves a recoverable state
         project.status = "importing"
 
-    connector = _get_connector(source.kind)
+    connector = get_connector(source.kind)
     if connector is None:
         async with get_session() as session:
             proj_result = await session.execute(

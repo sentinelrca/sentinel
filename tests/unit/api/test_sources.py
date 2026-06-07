@@ -123,9 +123,8 @@ async def test_create_source_invalid_credentials_returns_422():
     from sentinel_api.middleware.auth import get_workspace as _gw
 
     app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
-    with patch("sentinel_api.routers.sources._CONNECTORS", {
-        "langfuse": MagicMock(validate_config=MagicMock(return_value=False))
-    }):
+    with patch("sentinel_api.routers.sources.get_connector",
+               return_value=MagicMock(validate_config=MagicMock(return_value=False))):
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as client:

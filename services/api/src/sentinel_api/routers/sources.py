@@ -11,19 +11,11 @@ from sqlalchemy import delete, select
 
 from sentinel_pipeline.db.postgres import SourceRow, WorkspaceRow, get_session
 from sentinel_pipeline.crypto import decrypt_config, encrypt_config
-from sentinel_connectors.langfuse import LangfuseConnector
-from sentinel_connectors.langsmith import LangSmithConnector
-from sentinel_connectors.arize import ArizePhoenixConnector
+from sentinel_pipeline.connectors import get_connector
 
 from ..middleware.auth import get_workspace
 
 router = APIRouter(prefix="/sources", tags=["sources"])
-
-_CONNECTORS = {
-    "langfuse":       LangfuseConnector(),
-    "langsmith":      LangSmithConnector(),
-    "arize_phoenix":  ArizePhoenixConnector(),
-}
 
 
 class SourceCreate(BaseModel):
@@ -50,7 +42,7 @@ async def create_source(
     body: SourceCreate,
     workspace: WorkspaceRow = Depends(get_workspace),
 ) -> dict[str, Any]:
-    connector = _CONNECTORS.get(body.kind)
+    connector = get_connector(body.kind)
     if connector is None:
         raise HTTPException(status_code=400, detail=f"Unknown source kind '{body.kind}'")
 

@@ -8,24 +8,9 @@ from sentinel_worker.main import app
 from sentinel_pipeline.db.clickhouse import insert_spans
 from sentinel_pipeline.db.postgres import engine, get_session, SourceRow, WorkspaceRow
 from sentinel_pipeline.crypto import decrypt_config
+from sentinel_pipeline.connectors import get_connector
 
 logger = logging.getLogger(__name__)
-
-_CONNECTOR_MAP: dict = {}
-
-
-def _get_connector(kind: str):
-    if kind not in _CONNECTOR_MAP:
-        if kind == "langfuse":
-            from sentinel_connectors.langfuse import LangfuseConnector
-            _CONNECTOR_MAP[kind] = LangfuseConnector()
-        elif kind == "langsmith":
-            from sentinel_connectors.langsmith import LangSmithConnector
-            _CONNECTOR_MAP[kind] = LangSmithConnector()
-        elif kind == "arize_phoenix":
-            from sentinel_connectors.arize import ArizePhoenixConnector
-            _CONNECTOR_MAP[kind] = ArizePhoenixConnector()
-    return _CONNECTOR_MAP.get(kind)
 
 
 @app.task(name="sync_source", bind=True, max_retries=3)
@@ -68,7 +53,7 @@ async def _sync_source(source_id: str) -> dict:
         config = decrypt_config(source.config_json)
         since = source.last_synced_at or datetime(2020, 1, 1, tzinfo=timezone.utc)
 
-    connector = _get_connector(source_kind)
+    connector = get_connector(source_kind)
     if not connector:
         logger.error("No connector registered for source kind '%s'", source_kind)
         return {"source_id": source_id, "spans": 0, "traces": 0}
