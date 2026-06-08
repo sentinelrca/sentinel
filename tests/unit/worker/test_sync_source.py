@@ -52,7 +52,7 @@ async def test_sync_skips_free_tier_workspace():
 
     with (
         patch("sentinel_worker.tasks.sync_source.get_session") as mock_gs,
-        patch("sentinel_worker.tasks.sync_source._CONNECTOR_MAP") as mock_map,
+        patch("sentinel_worker.tasks.sync_source.get_connector") as mock_gc,
     ):
         mock_gs.return_value = _make_mock_session(source, workspace)
 
@@ -61,7 +61,7 @@ async def test_sync_skips_free_tier_workspace():
 
     assert result.get("skipped") is True
     assert result["spans"] == 0
-    mock_map.get.assert_not_called()
+    mock_gc.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -71,7 +71,7 @@ async def test_sync_skips_when_workspace_not_found():
 
     with (
         patch("sentinel_worker.tasks.sync_source.get_session") as mock_gs,
-        patch("sentinel_worker.tasks.sync_source._CONNECTOR_MAP") as mock_map,
+        patch("sentinel_worker.tasks.sync_source.get_connector") as mock_gc,
     ):
         mock_gs.return_value = _make_mock_session(source, workspace=None)
 
@@ -79,7 +79,7 @@ async def test_sync_skips_when_workspace_not_found():
         result = await _sync_source("src-1")
 
     assert result.get("skipped") is True
-    mock_map.get.assert_not_called()
+    mock_gc.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -93,8 +93,8 @@ async def test_sync_runs_for_starter_tier():
 
     with (
         patch("sentinel_worker.tasks.sync_source.get_session") as mock_gs,
-        patch("sentinel_worker.tasks.sync_source._CONNECTOR_MAP",
-              {"langfuse": mock_connector}),
+        patch("sentinel_worker.tasks.sync_source.get_connector",
+              return_value=mock_connector),
         patch("sentinel_worker.tasks.sync_source.insert_spans"),
     ):
         mock_gs.return_value = _make_mock_session(source, workspace)

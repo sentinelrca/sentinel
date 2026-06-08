@@ -69,7 +69,7 @@ async def test_import_calls_pull_by_window_and_inserts():
     with (
         patch("sentinel_worker.tasks.import_project_traces.get_import_limits",
               return_value={"imports_per_week": None, "traces_per_import": None}),
-        patch("sentinel_worker.tasks.import_project_traces._get_connector",
+        patch("sentinel_worker.tasks.import_project_traces.get_connector",
               return_value=mock_connector),
         patch("sentinel_worker.tasks.import_project_traces.insert_project_spans") as mock_insert,
         patch("sentinel_worker.tasks.import_project_traces.get_session") as mock_session_cm,
@@ -105,7 +105,7 @@ async def test_import_calls_pull_by_ids_when_trace_ids_in_filters():
     with (
         patch("sentinel_worker.tasks.import_project_traces.get_import_limits",
               return_value={"imports_per_week": None, "traces_per_import": None}),
-        patch("sentinel_worker.tasks.import_project_traces._get_connector",
+        patch("sentinel_worker.tasks.import_project_traces.get_connector",
               return_value=mock_connector),
         patch("sentinel_worker.tasks.import_project_traces.insert_project_spans"),
         patch("sentinel_worker.tasks.import_project_traces.get_session") as mock_session_cm,
@@ -192,7 +192,7 @@ async def test_connector_pull_failure_sets_error_status():
     with (
         patch("sentinel_worker.tasks.import_project_traces.get_import_limits",
               return_value={"imports_per_week": None, "traces_per_import": None}),
-        patch("sentinel_worker.tasks.import_project_traces._get_connector",
+        patch("sentinel_worker.tasks.import_project_traces.get_connector",
               return_value=mock_connector),
         patch("sentinel_worker.tasks.import_project_traces.insert_project_spans"),
         patch("sentinel_worker.tasks.import_project_traces.get_session") as mock_session_cm,
@@ -222,7 +222,7 @@ async def test_import_count_increments_on_reimport():
     with (
         patch("sentinel_worker.tasks.import_project_traces.get_import_limits",
               return_value={"imports_per_week": None, "traces_per_import": None}),
-        patch("sentinel_worker.tasks.import_project_traces._get_connector",
+        patch("sentinel_worker.tasks.import_project_traces.get_connector",
               return_value=mock_connector),
         patch("sentinel_worker.tasks.import_project_traces.insert_project_spans"),
         patch("sentinel_worker.tasks.import_project_traces.get_session") as mock_session_cm,
