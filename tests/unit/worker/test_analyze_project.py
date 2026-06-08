@@ -314,3 +314,50 @@ def _build_async_cm_side_effect(sessions: list):
         return _ACM()
 
     return _side_effect
+
+
+# ---------------------------------------------------------------------------
+# _dedupe_insights — collapse multiple insights per (trace, detector)
+# ---------------------------------------------------------------------------
+
+def _make_insight(trace_id, detector_id, severity, span_ids):
+    from sentinel_pipeline.models.insight import Insight, Severity
+    return Insight(
+        workspace_id="ws-1",
+        trace_id=trace_id,
+        detector_id=detector_id,
+        severity=Severity(severity),
+        title="t",
+        detail="d",
+        recommendation="r",
+        affected_span_ids=list(span_ids),
+    )
+
+
+def test_dedupe_keeps_one_per_trace_detector_highest_severity():
+    from sentinel_worker.tasks.analyze_project import _dedupe_insights
+    ins = [
+        _make_insight("t-1", "agent_loop", "warning", ["a", "b"]),
+        _make_insight("t-1", "agent_loop", "high", ["b", "c"]),  # higher severity wins
+    ]
+    out = _dedupe_insights(ins)
+    assert len(out) == 1
+    assert out[0].severity.value == "high"
+    # affected spans merged + de-duplicated, first-appearance order preserved
+    assert out[0].affected_span_ids == ["a", "b", "c"]
+
+
+def test_dedupe_preserves_distinct_keys():
+    from sentinel_worker.tasks.analyze_project import _dedupe_insights
+    ins = [
+        _make_insight("t-1", "agent_loop", "high", ["a"]),
+        _make_insight("t-1", "latency_spike", "high", ["b"]),   # different detector
+        _make_insight("t-2", "agent_loop", "high", ["c"]),      # different trace
+    ]
+    out = _dedupe_insights(ins)
+    assert len(out) == 3
+
+
+def test_dedupe_empty_list():
+    from sentinel_worker.tasks.analyze_project import _dedupe_insights
+    assert _dedupe_insights([]) == []

@@ -22,6 +22,33 @@ from sentinel_worker.tasks.process_trace import _row_to_span
 
 logger = logging.getLogger(__name__)
 
+_SEVERITY_RANK = {"info": 0, "warning": 1, "high": 2, "critical": 3}
+
+
+def _dedupe_insights(insights: list) -> list:
+    """Collapse insights to one per (trace_id, detector_id).
+
+    The insights table enforces one row per (workspace, trace, detector,
+    project), but a detector can legitimately emit several insights for one
+    trace. Keep the highest-severity insight per key and merge the dropped
+    insights' affected_span_ids into it so no span context is lost.
+    """
+    kept: dict[tuple[str, str], object] = {}
+    for ins in insights:
+        key = (ins.trace_id, ins.detector_id)
+        winner = kept.get(key)
+        if winner is None:
+            kept[key] = ins
+            continue
+        # Merge affected spans (preserve order, de-duplicated)
+        merged = list(dict.fromkeys([*winner.affected_span_ids, *ins.affected_span_ids]))
+        if _SEVERITY_RANK.get(ins.severity.value, 0) > _SEVERITY_RANK.get(winner.severity.value, 0):
+            ins.affected_span_ids = merged
+            kept[key] = ins
+        else:
+            winner.affected_span_ids = merged
+    return list(kept.values())
+
 
 @app.task(name="analyze_project", bind=True, max_retries=3)
 def analyze_project(self, project_id: str, workspace_id: str, workspace_tier: int = 0) -> dict:
@@ -127,6 +154,12 @@ async def _analyze_project(project_id: str, workspace_id: str, tier: Tier) -> di
         graph = build_graph(trace_spans)
         insights = run_detectors(graph, workspace_tier=tier, detector_overrides=detector_overrides)
         all_insights.extend(insights)
+
+    # A detector may emit more than one insight for the same trace (e.g.
+    # agent_loop finds two distinct loops). The insights table allows only one
+    # row per (workspace, trace, detector, project), so collapse duplicates to
+    # the highest-severity insight, folding the others' affected spans into it.
+    all_insights = _dedupe_insights(all_insights)
 
     # 7. Persist: delete existing project insights, insert new ones,
     #    set status back to ready, update last_analyzed_at
