@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import uuid
 from typing import Any
 
+from celery import Celery
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import delete, select
@@ -16,6 +18,9 @@ from sentinel_pipeline.connectors import get_connector
 from ..middleware.auth import get_workspace
 
 router = APIRouter(prefix="/sources", tags=["sources"])
+
+_REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+_celery = Celery(broker=_REDIS_URL, backend=_REDIS_URL)
 
 
 class SourceCreate(BaseModel):
@@ -82,6 +87,30 @@ async def delete_source(
         await session.execute(
             delete(SourceRow).where(SourceRow.id == source_id)
         )
+
+
+@router.post("/{source_id}/sync", status_code=202)
+async def sync_source_endpoint(
+    source_id: str,
+    workspace: WorkspaceRow = Depends(get_workspace),
+) -> dict[str, str]:
+    """Trigger an on-demand sync for a source. Returns the queued task id.
+
+    Tier gating (free-tier workspaces are skipped) is enforced inside the
+    sync_source task itself, so this endpoint only verifies ownership.
+    """
+    async with get_session() as session:
+        result = await session.execute(
+            select(SourceRow).where(
+                SourceRow.id == source_id,
+                SourceRow.workspace_id == workspace.id,
+            )
+        )
+        if result.scalar_one_or_none() is None:
+            raise HTTPException(status_code=404, detail="Source not found")
+
+    task = _celery.send_task("sync_source", args=[source_id])
+    return {"task_id": task.id}
 
 
 def _row_to_dict(r: SourceRow) -> dict[str, Any]:

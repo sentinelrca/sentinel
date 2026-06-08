@@ -159,3 +159,60 @@ async def test_delete_source_not_found_returns_404():
 
     app.dependency_overrides.clear()
     assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# POST /sources/{id}/sync — on-demand sync trigger
+# ---------------------------------------------------------------------------
+
+def _mock_session_scalar(row):
+    """Async CM yielding a session whose execute().scalar_one_or_none() == row."""
+    mock_session = AsyncMock()
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none.return_value = row
+    mock_session.execute = AsyncMock(return_value=mock_result)
+    cm = MagicMock()
+    cm.__aenter__ = AsyncMock(return_value=mock_session)
+    cm.__aexit__ = AsyncMock(return_value=False)
+    return cm
+
+
+@pytest.mark.asyncio
+async def test_sync_source_found_returns_202_and_dispatches_task():
+    from sentinel_api.middleware.auth import get_workspace as _gw
+
+    src = _source_row("arize_phoenix", {"host": "https://x", "api_key": "k"})
+    app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
+    with (
+        patch("sentinel_api.routers.sources.get_session", return_value=_mock_session_scalar(src)),
+        patch("sentinel_api.routers.sources._celery.send_task",
+              return_value=MagicMock(id="task-abc")) as mock_send,
+    ):
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            resp = await client.post("/v1/sources/src-1/sync")
+
+    app.dependency_overrides.clear()
+    assert resp.status_code == 202
+    assert resp.json() == {"task_id": "task-abc"}
+    mock_send.assert_called_once_with("sync_source", args=["src-1"])
+
+
+@pytest.mark.asyncio
+async def test_sync_source_not_found_returns_404_and_skips_dispatch():
+    from sentinel_api.middleware.auth import get_workspace as _gw
+
+    app.dependency_overrides[_gw] = lambda: _FAKE_WORKSPACE
+    with (
+        patch("sentinel_api.routers.sources.get_session", return_value=_mock_session_scalar(None)),
+        patch("sentinel_api.routers.sources._celery.send_task") as mock_send,
+    ):
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            resp = await client.post("/v1/sources/missing/sync")
+
+    app.dependency_overrides.clear()
+    assert resp.status_code == 404
+    mock_send.assert_not_called()
