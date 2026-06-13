@@ -350,3 +350,24 @@ def fetch_spans_by_filter(
     except Exception:
         logger.exception("Failed to fetch spans by filter for workspace %s", workspace_id)
         return []
+
+
+def delete_spans_older_than(workspace_id: str, cutoff_iso: str) -> int:
+    """Delete live spans for a workspace older than cutoff_iso (ISO 8601 string).
+
+    Uses ALTER TABLE ... DELETE (ClickHouse mutation — asynchronous).
+    Returns the number of rows affected as reported by ClickHouse (may be 0
+    until the mutation completes; safe to ignore for fire-and-forget cleanup).
+    """
+    try:
+        client = _get_client()
+        client.execute(
+            "ALTER TABLE spans DELETE "
+            "WHERE workspace_id = %(ws)s AND start_time < %(cutoff)s",
+            {"ws": workspace_id, "cutoff": cutoff_iso},
+        )
+        logger.info("Queued retention cleanup for workspace %s (cutoff %s)", workspace_id, cutoff_iso)
+        return 0   # mutations are async; row count is not immediately available
+    except Exception:
+        logger.exception("Failed to delete old spans for workspace %s", workspace_id)
+        raise

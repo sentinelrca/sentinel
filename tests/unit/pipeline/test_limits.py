@@ -70,3 +70,48 @@ def test_engine_limits_used_when_engine_present():
         mock_engine_limits.get_import_limits.assert_called_once_with(1)
     finally:
         _reload_limits_module()
+
+
+# ---------------------------------------------------------------------------
+# get_tier_limits
+# ---------------------------------------------------------------------------
+
+def test_free_tier_has_source_limit():
+    _reload_limits_module()
+    sys.modules["sentinel_engine"] = None  # type: ignore[assignment]
+    sys.modules["sentinel_engine.limits"] = None  # type: ignore[assignment]
+    try:
+        from sentinel_pipeline.limits import get_tier_limits
+        limits = get_tier_limits(0)
+        assert limits["max_sources"] == 1
+        assert limits["retention_days"] == 7
+    finally:
+        _reload_limits_module()
+
+
+def test_paid_tier_has_no_source_limit():
+    _reload_limits_module()
+    sys.modules["sentinel_engine"] = None  # type: ignore[assignment]
+    sys.modules["sentinel_engine.limits"] = None  # type: ignore[assignment]
+    try:
+        from sentinel_pipeline.limits import get_tier_limits
+        limits = get_tier_limits(1)
+        assert limits["max_sources"] is None
+        assert limits["retention_days"] >= 30
+    finally:
+        _reload_limits_module()
+
+
+def test_tier_limits_returns_independent_copies():
+    """Mutating a returned dict must not affect subsequent calls."""
+    _reload_limits_module()
+    sys.modules["sentinel_engine"] = None  # type: ignore[assignment]
+    sys.modules["sentinel_engine.limits"] = None  # type: ignore[assignment]
+    try:
+        from sentinel_pipeline.limits import get_tier_limits
+        a = get_tier_limits(0)
+        a["max_sources"] = 99
+        b = get_tier_limits(0)
+        assert b["max_sources"] == 1
+    finally:
+        _reload_limits_module()
