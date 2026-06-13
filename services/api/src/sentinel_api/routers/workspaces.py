@@ -1,9 +1,11 @@
 """Workspace provisioning router.
 
-POST /v1/workspaces — create a workspace and issue an API key.
+POST /v1/workspaces            — create a workspace and issue an API key.
+POST /v1/workspaces/{id}/api-keys — rotate/reissue a workspace API key.
 
-Gated by X-Admin-Key header (must match SENTINEL_ADMIN_KEY env var).
-The raw API key is returned exactly once; only its SHA-256 hash is stored.
+Both endpoints are gated by X-Admin-Key header (must match SENTINEL_ADMIN_KEY
+env var). The raw API key is returned exactly once; only its SHA-256 hash is
+stored.
 """
 from __future__ import annotations
 
@@ -12,7 +14,8 @@ import hmac
 import os
 import secrets
 import uuid
-from typing import Any
+from datetime import datetime
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Security, status
 from fastapi.security import APIKeyHeader
@@ -20,8 +23,6 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from sentinel_pipeline.db.postgres import WorkspaceRow, get_session
-
-router = APIRouter(prefix="/workspaces", tags=["workspaces"])
 
 _admin_key_header = APIKeyHeader(name="X-Admin-Key", auto_error=False)
 
@@ -42,6 +43,15 @@ def _check_admin_key(admin_key: str | None = Security(_admin_key_header)) -> Non
         )
 
 
+# Router-level dependency — every route in this file requires the admin key.
+# New endpoints added here are protected automatically; no per-endpoint Depends needed.
+router = APIRouter(
+    prefix="/workspaces",
+    tags=["workspaces"],
+    dependencies=[Depends(_check_admin_key)],
+)
+
+
 class WorkspaceCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     tier: int = Field(default=0, ge=0, le=3)
@@ -51,21 +61,17 @@ class WorkspaceCreated(BaseModel):
     id:         str
     name:       str
     tier:       int
-    api_key:    str   # shown once — store it now, it cannot be recovered
-    created_at: str
+    api_key:    str                  # shown once — store it now, it cannot be recovered
+    created_at: Optional[datetime]
 
 
 @router.post("", status_code=201, response_model=WorkspaceCreated)
-async def create_workspace(
-    body: WorkspaceCreate,
-    _: None = Depends(_check_admin_key),
-) -> dict[str, Any]:
+async def create_workspace(body: WorkspaceCreate) -> WorkspaceCreated:
     """Provision a new workspace and return a one-time API key.
 
     The raw key is returned in this response only. The server stores only its
     SHA-256 hash. If the key is lost, rotate it via POST /workspaces/{id}/api-keys.
     """
-    # Generate a random API key and hash it for storage
     raw_key  = _KEY_PREFIX + secrets.token_hex(32)
     key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
 
@@ -88,22 +94,19 @@ async def create_workspace(
         )
         session.add(row)
         await session.flush()
-        await session.refresh(row)
+        await session.refresh(row)   # populate server_default fields (created_at)
 
-    return {
-        "id":         row.id,
-        "name":       row.name,
-        "tier":       row.tier,
-        "api_key":    raw_key,
-        "created_at": row.created_at.isoformat() if row.created_at else "",
-    }
+    return WorkspaceCreated(
+        id=row.id,
+        name=row.name,
+        tier=row.tier,
+        api_key=raw_key,
+        created_at=row.created_at,
+    )
 
 
 @router.post("/{workspace_id}/api-keys", status_code=201)
-async def rotate_api_key(
-    workspace_id: str,
-    _: None = Depends(_check_admin_key),
-) -> dict[str, Any]:
+async def rotate_api_key(workspace_id: str) -> dict:
     """Issue a new API key for an existing workspace, invalidating the previous one."""
     raw_key  = _KEY_PREFIX + secrets.token_hex(32)
     key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
@@ -115,6 +118,9 @@ async def rotate_api_key(
         row = result.scalar_one_or_none()
         if row is None:
             raise HTTPException(status_code=404, detail="Workspace not found")
+        # The row is in the session's ORM identity map (loaded via select above).
+        # Mutating it marks it dirty; get_session() commits on exit (autoflush=True).
         row.api_key_hash = key_hash
+        await session.flush()
 
     return {"workspace_id": workspace_id, "api_key": raw_key}
