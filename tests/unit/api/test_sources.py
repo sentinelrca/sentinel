@@ -216,3 +216,107 @@ async def test_sync_source_not_found_returns_404_and_skips_dispatch():
     app.dependency_overrides.clear()
     assert resp.status_code == 404
     mock_send.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Source count limit (free-tier enforcement)
+# ---------------------------------------------------------------------------
+
+def _mock_session_list(rows):
+    """Session whose execute().scalars().all() returns rows."""
+    session = AsyncMock()
+    result = MagicMock()
+    result.scalars.return_value.all.return_value = rows
+    result.scalar_one_or_none.return_value = rows[0] if rows else None
+    session.execute = AsyncMock(return_value=result)
+    session.add = MagicMock()
+    session.flush = AsyncMock()
+    session.refresh = AsyncMock()
+    cm = MagicMock()
+    cm.__aenter__ = AsyncMock(return_value=session)
+    cm.__aexit__ = AsyncMock(return_value=False)
+    return cm
+
+
+@pytest.mark.asyncio
+async def test_create_source_blocked_when_free_tier_limit_reached():
+    """Free-tier workspace (tier=0) with 1 existing source must get 402."""
+    from sentinel_api.middleware.auth import get_workspace as _gw
+    from sentinel_pipeline.db.postgres import SourceRow
+
+    free_ws = WorkspaceRow(id="ws-free", name="free", api_key_hash="x", tier=0)
+    existing_source = MagicMock(spec=SourceRow)
+
+    app.dependency_overrides[_gw] = lambda: free_ws
+    with (
+        patch("sentinel_api.routers.sources.get_connector",
+              return_value=MagicMock(validate_config=MagicMock(return_value=True))),
+        patch("sentinel_api.routers.sources.get_session",
+              return_value=_mock_session_list([existing_source])),
+    ):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+            resp = await c.post("/v1/sources",
+                                json={"kind": "langfuse", "config_json": {"public_key": "pk"}})
+
+    app.dependency_overrides.clear()
+    assert resp.status_code == 402
+    assert "Source limit reached" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_create_source_allowed_when_paid_tier():
+    """Paid-tier workspace (tier=1) has no source limit — even with existing sources."""
+    from sentinel_api.middleware.auth import get_workspace as _gw
+    from sentinel_pipeline.db.postgres import SourceRow
+
+    paid_ws = WorkspaceRow(id="ws-paid", name="paid", api_key_hash="x", tier=1)
+    existing_source = MagicMock(spec=SourceRow)
+
+    app.dependency_overrides[_gw] = lambda: paid_ws
+    mock_session = _mock_session_list([existing_source])
+    # Make scalars().all() return [] for the count query but allow add/flush/refresh
+    session = mock_session.__aenter__.return_value
+    result_no_limit = MagicMock()
+    result_no_limit.scalars.return_value.all.return_value = [existing_source]
+    result_no_limit.scalar_one_or_none.return_value = None  # no collision
+    session.execute = AsyncMock(return_value=result_no_limit)
+
+    with (
+        patch("sentinel_api.routers.sources.get_connector",
+              return_value=MagicMock(validate_config=MagicMock(return_value=True))),
+        patch("sentinel_api.routers.sources.get_session", return_value=mock_session),
+        patch("sentinel_api.routers.sources.encrypt_config", return_value={"_enc": "x"}),
+        patch("sentinel_api.routers.sources.decrypt_config", return_value={}),
+    ):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+            resp = await c.post("/v1/sources",
+                                json={"kind": "langfuse", "config_json": {"public_key": "pk"}})
+
+    app.dependency_overrides.clear()
+    # Paid tier has no limit — should proceed past the count check (201 or 422 from connector)
+    assert resp.status_code != 402
+
+
+@pytest.mark.asyncio
+async def test_create_source_allowed_on_free_tier_when_no_existing_sources():
+    """Free-tier workspace with 0 sources should be allowed to add one."""
+    from sentinel_api.middleware.auth import get_workspace as _gw
+
+    free_ws = WorkspaceRow(id="ws-free", name="free", api_key_hash="x", tier=0)
+
+    app.dependency_overrides[_gw] = lambda: free_ws
+    with (
+        patch("sentinel_api.routers.sources.get_connector",
+              return_value=MagicMock(validate_config=MagicMock(return_value=True))),
+        patch("sentinel_api.routers.sources.get_session",
+              return_value=_mock_session_list([])),
+        patch("sentinel_api.routers.sources.encrypt_config", return_value={"_enc": "x"}),
+        patch("sentinel_api.routers.sources.decrypt_config", return_value={}),
+    ):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+            resp = await c.post("/v1/sources",
+                                json={"kind": "langfuse", "config_json": {"public_key": "pk"}})
+
+    app.dependency_overrides.clear()
+    # No limit hit — should not get 402
+    assert resp.status_code != 402

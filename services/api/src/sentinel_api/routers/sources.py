@@ -14,6 +14,7 @@ from sqlalchemy import delete, select
 from sentinel_pipeline.db.postgres import SourceRow, WorkspaceRow, get_session
 from sentinel_pipeline.crypto import decrypt_config, encrypt_config
 from sentinel_pipeline.connectors import get_connector
+from sentinel_pipeline.limits import get_tier_limits
 
 from ..middleware.auth import get_workspace
 
@@ -56,6 +57,22 @@ async def create_source(
         raise HTTPException(status_code=422, detail="Connection test failed — check credentials")
 
     async with get_session() as session:
+        limits = get_tier_limits(workspace.tier)
+        max_sources: int | None = limits.get("max_sources")
+        if max_sources is not None:
+            count_result = await session.execute(
+                select(SourceRow).where(SourceRow.workspace_id == workspace.id)
+            )
+            existing_count = len(count_result.scalars().all())
+            if existing_count >= max_sources:
+                raise HTTPException(
+                    status_code=402,
+                    detail=(
+                        f"Source limit reached ({existing_count}/{max_sources}). "
+                        "Upgrade your plan to connect additional sources."
+                    ),
+                )
+
         row = SourceRow(
             id=str(uuid.uuid4()),
             workspace_id=workspace.id,
