@@ -266,8 +266,9 @@ def test_pull_by_window_sends_correct_time_params():
     list(connector.pull_by_window(_CONFIG, _SINCE, _UNTIL, _WORKSPACE))
     assert route.called
     sent_params = dict(route.calls[0].request.url.params)
-    assert sent_params["fromStartTime"] == _SINCE.isoformat()
-    assert sent_params["toStartTime"] == _UNTIL.isoformat()
+    # Langfuse expects millisecond precision with Z suffix, not +00:00
+    assert sent_params["fromStartTime"] == "2026-01-01T00:00:00.000Z"
+    assert sent_params["toStartTime"]   == "2026-01-02T00:00:00.000Z"
 
 
 @respx.mock
