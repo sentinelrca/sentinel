@@ -14,7 +14,7 @@ _ADMIN_KEY = "test-admin-secret"
 _ADMIN_HEADERS = {"X-Admin-Key": _ADMIN_KEY}
 
 
-def _mock_session(scalar=None, flush_ok=True):
+def _mock_session(scalar=None):
     """Async CM yielding a session whose execute().scalar_one_or_none() returns scalar."""
     session = AsyncMock()
     result = MagicMock()
@@ -88,17 +88,22 @@ async def test_api_key_is_unique_per_call():
 
 
 @pytest.mark.asyncio
-async def test_api_key_not_stored_in_response_hash():
-    """The returned api_key must NOT be its own SHA-256 hash (raw key, not hash)."""
+async def test_hash_of_api_key_is_stored_not_raw_key():
+    """The DB must receive sha256(api_key) in api_key_hash — not the raw key itself."""
+    mock_session = _mock_session(scalar=None)
     with (
         patch("sentinel_api.routers.workspaces.os.environ.get", return_value=_ADMIN_KEY),
-        patch("sentinel_api.routers.workspaces.get_session", return_value=_mock_session(scalar=None)),
+        patch("sentinel_api.routers.workspaces.get_session", return_value=mock_session),
     ):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             resp = await c.post("/v1/workspaces", json={"name": "ws"}, headers=_ADMIN_HEADERS)
 
     raw_key = resp.json()["api_key"]
-    assert raw_key != hashlib.sha256(raw_key.encode()).hexdigest()
+    expected_hash = hashlib.sha256(raw_key.encode()).hexdigest()
+    session = mock_session.__aenter__.return_value
+    added_row: WorkspaceRow = session.add.call_args[0][0]
+    assert added_row.api_key_hash == expected_hash, "DB must store the hash, not the raw key"
+    assert added_row.api_key_hash != raw_key, "Raw key must never be stored in the DB"
 
 
 # ---------------------------------------------------------------------------
