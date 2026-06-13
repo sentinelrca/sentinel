@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 48" fill="none">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 50" fill="none">
   <defs>
     <marker id="a" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
       <path d="M0,0.5 L5,3 L0,5.5 Z" fill="#818CF8" fill-opacity="0.8"/>
@@ -13,27 +13,24 @@
   </defs>
 
   <!-- Icon -->
-  <line x1="15" y1="13" x2="31" y2="13"
+  <line x1="15.5" y1="13" x2="31" y2="13"
         stroke="#818CF8" stroke-width="1.8" stroke-opacity="0.7" marker-end="url(#a)"/>
-  <line x1="12" y1="17.5" x2="20.5" y2="29.5"
-        stroke="#818CF8" stroke-width="1.8" stroke-opacity="0.7" marker-end="url(#b)"/>
-  <line x1="36" y1="17.5" x2="27.5" y2="29.5"
-        stroke="#818CF8" stroke-width="1.8" stroke-opacity="0.7" marker-end="url(#b)"/>
+  <line x1="13" y1="17.5" x2="21" y2="29"
+        stroke="#38BDF8" stroke-width="1.8" stroke-opacity="0.7" marker-end="url(#b)"/>
+  <line x1="35" y1="17.5" x2="27" y2="29"
+        stroke="#38BDF8" stroke-width="1.8" stroke-opacity="0.7" marker-end="url(#b)"/>
   <circle cx="10" cy="13" r="5.5" fill="#818CF8"/>
   <circle cx="38" cy="13" r="5.5" fill="#818CF8"/>
   <circle cx="24" cy="35" r="8"   fill="#38BDF8" fill-opacity="0.2" filter="url(#glow)"/>
   <circle cx="24" cy="35" r="5.5" fill="#38BDF8" filter="url(#glow)"/>
-  <path d="M4,44 L10,44 L12.5,39.5 L15,47 L17.5,40 L20,44 L44,44"
+  <path d="M4,45 L10,45 L12.5,41 L15,47 L17.5,41.5 L20,45 L44,45"
         stroke="#38BDF8" stroke-width="1.6" fill="none"
         stroke-linecap="round" stroke-linejoin="round"/>
 
-  <!-- Wordmark — white for dark backgrounds -->
-  <text x="56" y="31"
+  <!-- Wordmark — vertically centered -->
+  <text x="56" y="29"
         font-family="'Inter', 'SF Pro Display', system-ui, sans-serif"
-        font-size="22" font-weight="600" letter-spacing="-0.5"
-        fill="#FFFFFF">Sentinel</text>
-  <text x="163" y="31"
-        font-family="'Inter', 'SF Pro Display', system-ui, sans-serif"
-        font-size="22" font-weight="600" letter-spacing="-0.5"
-        fill="#38BDF8">RCA</text>
+        font-size="22" font-weight="600" letter-spacing="-0.5">
+    <tspan fill="#FFFFFF">Sentinel</tspan><tspan fill="#38BDF8">RCA</tspan>
+  </text>
 </svg>

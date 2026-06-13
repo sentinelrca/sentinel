@@ -1,120 +1,163 @@
 # Contributing to SentinelRCA
 
-Thanks for your interest in contributing. SentinelRCA is an open-source AI agent reliability tool — contributions to connectors, detectors, bug fixes, and docs are all welcome.
+Thanks for your interest. The two most common contributions are **connectors** (new observability sources) and **detectors** (new patterns to detect). Both are straightforward to add.
 
----
-
-## Quick start
+## Getting started
 
 ```bash
-# 1. Fork the repo on GitHub, then clone your fork
-git clone https://github.com/<your-username>/sentinel.git
-cd sentinel
-
-# 2. Start infrastructure
-task up   # requires Docker + go-task (brew install go-task)
-
-# 3. Install test dependencies
-cd tests && uv sync --no-install-project
-
-# 4. Run unit tests (no Docker required)
-uv run --no-project pytest unit/ -v
-
-# 5. Create a branch and make your changes
-git checkout -b feature/your-change
-
-# 6. Push and open a PR against sentinelrca/sentinel main
+git clone https://github.com/sentinelrca/sentinel
+cd sentinel/code/tests
+uv sync --no-install-project
+uv run --no-project pytest unit/ -v   # should be all green
 ```
 
 ---
 
-## What to contribute
+## Adding a connector
 
-### Connectors (highest impact)
+A connector is a thin pull adapter that fetches spans from one observability source and maps them to `NormalizedSpan`.
 
-New connectors make Sentinel useful to more teams. A connector pulls traces from an observability source and normalizes them to `NormalizedSpan`.
+### 1. Create the package
 
-Supported today: Langfuse, LangSmith.
-Wanted: Arize Phoenix, LangWatch, Weave, OpenTelemetry/OTLP.
-
-See [`connectors/langfuse/`](connectors/langfuse/) as the reference implementation and [`connectors/_base/`](connectors/_base/) for the `Connector` ABC.
-
-Steps:
-1. Create `connectors/<source>/` with its own `pyproject.toml`
-2. Implement `Connector` ABC — `validate_config()` and `pull()`
-3. Add a fixture trace at `tests/fixtures/<source>_sample.json`
-4. Add unit tests at `tests/unit/connectors/test_<source>.py`
-
-### Detectors
-
-A detector is a deterministic pattern matched against a trace's flow graph. All detectors must work **without reading prompt content** — structure, timing, token counts, and span metadata only.
-
-See [`services/pipeline/src/sentinel_pipeline/detectors/`](services/pipeline/src/sentinel_pipeline/detectors/) for existing detectors and the `Detector` ABC in `base.py`.
-
-Steps:
-1. Create `services/pipeline/src/sentinel_pipeline/detectors/<name>.py`
-2. Implement `Detector` ABC — `id`, `name`, `severity`, `tier`, `evaluate()`
-3. Register in `detectors/__init__.py` `DETECTOR_REGISTRY`
-4. Add tests: at least one fixture that triggers the detector, one that must not
-
-Before opening a PR for a new detector, open an issue using the **New Detector** template first. We want to agree on the failure pattern, thresholds, and FP risk before implementation.
-
-### Bug fixes
-
-Check [open issues](https://github.com/sentinelrca/sentinel/issues) labelled `bug`. Any bug fix is welcome — no prior discussion needed for clear bugs.
-
-### Documentation
-
-Fixes to `README.md`, `CLAUDE.md`, or code comments are always welcome.
-
----
-
-## Guidelines
-
-**Detectors must be deterministic.** The same trace must always produce the same result. No LLM inference, no randomness, no external API calls in detection logic.
-
-**No content reading by default.** Detectors operate on span structure, timestamps, token counts, span kinds, and agent names — not on prompt text or LLM outputs. Content-based detectors require `store_content=True` and are explicitly marked as Pro tier.
-
-**One detector per PR.** Keeps review focused and makes it easier to revert if a detector has a high false positive rate.
-
-**Tests are required.** PRs without tests will not be merged. At minimum: one positive case (detector fires) and one negative case (detector does not fire on a clean trace).
-
-**Thresholds need rationale.** If your detector fires on a threshold (e.g., ≥3 retries, >50% of trace duration), explain why in the PR description — cite a source, a practitioner report, or measured data.
-
----
-
-## PR checklist
-
-- [ ] Branch name: `feature/`, `fix/`, or `connector/` prefix
-- [ ] Tests pass: `cd tests && uv run --no-project pytest unit/ -v`
-- [ ] New detector registered in `DETECTOR_REGISTRY`
-- [ ] New connector has a fixture trace and unit tests
-- [ ] No prompt content read in detector logic
-- [ ] PR description explains the failure pattern and threshold rationale
-
----
-
-## Local development tips
-
-```bash
-task test          # run all unit tests
-task lint          # ruff linter
-task fmt           # auto-format
-task up            # start Postgres + ClickHouse + Redis
-task migrate       # run Postgres migrations
-task logs:worker   # tail Celery worker logs
+```
+connectors/<source>/
+├── pyproject.toml
+└── src/sentinel_connectors/<source>.py
 ```
 
-Each service has its own virtualenv managed by `uv`. No root-level venv.
+Copy `connectors/langsmith/` as a starting point — it's the simplest connector.
+
+### 2. Implement the ABC
+
+```python
+from sentinel_connectors.base import Connector
+from sentinel_pipeline.models.span import NormalizedSpan
+
+class MyConnector(Connector):
+    source_kind = "my_source"
+
+    def validate_config(self, config: dict) -> bool:
+        # hit a cheap endpoint to verify credentials
+        ...
+
+    def pull(self, config, since, workspace_id) -> Iterator[list[NormalizedSpan]]:
+        # cursor-paginate spans newer than `since`
+        ...
+
+    def pull_by_window(self, config, since, until, workspace_id, limit=500):
+        # bounded import: spans in [since, until]
+        ...
+
+    def pull_by_ids(self, config, trace_ids, workspace_id):
+        # fetch specific traces by ID
+        ...
+```
+
+### 3. Register it
+
+Add to `services/pipeline/src/sentinel_pipeline/connectors.py`:
+
+```python
+_CONNECTOR_SPECS: dict[str, tuple[str, str]] = {
+    ...
+    "my_source": ("sentinel_connectors.my_source", "MyConnector"),
+}
+```
+
+### 4. Add tests
+
+```
+tests/unit/connectors/test_<source>.py
+```
+
+Use `respx` to mock HTTP calls. See `tests/unit/connectors/test_arize.py` for a full example with 25 tests covering all three pull methods, pagination, error handling, and evidence quality.
+
+### 5. Open a PR
+
+Open an issue first to align on the interface — especially if the source has an unusual auth model or pagination scheme.
+
+---
+
+## Adding a detector
+
+A detector takes a `FlowGraph` + `Signals` and returns a list of `Insight` objects (or `None`).
+
+### 1. Create the file
+
+```
+services/pipeline/src/sentinel_pipeline/detectors/<detector_name>.py
+```
+
+### 2. Implement the ABC
+
+```python
+from sentinel_pipeline.detectors.base import Detector
+from sentinel_pipeline.models.insight import Insight, Severity, Tier
+from sentinel_pipeline.models.graph import FlowGraph
+from sentinel_pipeline.signals.extractor import Signals
+
+_MY_THRESHOLD = 3
+
+class MyDetector(Detector):
+    id       = "my_detector"
+    name     = "My Detector"
+    severity = Severity.WARNING
+    tier     = Tier.FREE           # or Tier.STARTER / Tier.PRO
+
+    def evaluate(self, graph: FlowGraph, signals: Signals) -> list[Insight] | None:
+        if not <condition>:
+            return None
+
+        return [Insight(
+            workspace_id=graph.workspace_id,
+            trace_id=graph.trace_id,
+            detector_id=self.id,
+            severity=self.severity,
+            title="Short title shown in the UI",
+            detail="Longer explanation of what was found and why it matters.",
+            recommendation="Specific, actionable fix the developer can apply.",
+            affected_span_ids=["sp-1", "sp-2"],
+            evidence={"key": "value"},
+        )]
+```
+
+### 3. Register it
+
+Add to `DETECTOR_REGISTRY` in `services/pipeline/src/sentinel_pipeline/detectors/__init__.py`:
+
+```python
+from sentinel_pipeline.detectors.my_detector import MyDetector
+
+DETECTOR_REGISTRY: list[Detector] = [
+    ...
+    MyDetector(),
+]
+```
+
+### 4. Add tests
+
+```
+tests/unit/rules/test_<detector_name>.py
+```
+
+Write at least:
+- One test that **triggers** the detector
+- One test that **does not trigger** it (clean trace)
+- Evidence key assertions
+
+See `tests/unit/rules/test_retry_storm.py` for a thorough example.
+
+---
+
+## Code style
 
 ```bash
-cd services/pipeline && uv sync   # install pipeline deps
-cd services/api     && uv sync   # install API deps
-cd tests            && uv sync --no-install-project  # install test deps
+uv run ruff check services/ connectors/ tools/ tests/
+uv run ruff format services/ connectors/ tools/ tests/
 ```
 
 ---
 
 ## Questions?
 
-Open a [GitHub Discussion](https://github.com/sentinelrca/sentinel/discussions) or file an issue. We respond to all genuine questions.
+Open a [GitHub Discussion](https://github.com/sentinelrca/sentinel/discussions) before starting large changes.
