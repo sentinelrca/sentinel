@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="assets/logo.svg" alt="SentinelRCA" height="52"/>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.svg"/>
+    <img src="assets/logo.svg" alt="SentinelRCA" height="52"/>
+  </picture>
 </p>
 
 <p align="center"><strong>Root cause analysis for AI agents.</strong></p>
