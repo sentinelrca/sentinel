@@ -7,7 +7,7 @@ import pytest
 import respx
 from httpx import Response
 
-from sentinel_connectors.langfuse import LangfuseConnector, _parse_ts
+from sentinel_connectors.langfuse import LangfuseConnector, _parse_ts, _to_langfuse_ts
 from sentinel_pipeline.models.span import SpanKind, SpanStatus
 
 connector = LangfuseConnector()
@@ -266,9 +266,8 @@ def test_pull_by_window_sends_correct_time_params():
     list(connector.pull_by_window(_CONFIG, _SINCE, _UNTIL, _WORKSPACE))
     assert route.called
     sent_params = dict(route.calls[0].request.url.params)
-    # Langfuse expects millisecond precision with Z suffix, not +00:00
-    assert sent_params["fromStartTime"] == "2026-01-01T00:00:00.000Z"
-    assert sent_params["toStartTime"]   == "2026-01-02T00:00:00.000Z"
+    assert sent_params["fromStartTime"] == _to_langfuse_ts(_SINCE)
+    assert sent_params["toStartTime"]   == _to_langfuse_ts(_UNTIL)
 
 
 @respx.mock

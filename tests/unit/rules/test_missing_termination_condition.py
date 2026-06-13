@@ -136,28 +136,29 @@ def test_no_fire_on_empty_graph():
 
 
 def test_no_fire_when_multi_agent_cycle_present():
-    """If a cycle spans ≥2 distinct agents, agent_loop fires instead — skip here."""
+    """If a cycle spans ≥2 distinct agents, agent_loop fires instead — skip here.
+
+    Real traces don't produce graph cycles (each span has one parent forming a
+    DAG), so we patch graph.has_cycle / graph.cycles to simulate the condition.
+    """
+    from unittest.mock import patch
+
     spans = _unbounded_trace()
-    # Simulate a 2-agent cycle: hermione and harry both in cycles
-    cycle_spans = [
-        _agent("hermione_1", agent_name="hermione", parent_id=None, offset_ms=2000),
-        _agent("harry_1",    agent_name="harry",    parent_id="hermione_1", offset_ms=2100),
-        _agent("hermione_2", agent_name="hermione", parent_id="harry_1", offset_ms=2200),
-    ]
-    all_spans = spans + cycle_spans
-    graph = build_graph(all_spans)
+    graph = build_graph(spans)
     signals = extract_signals(graph)
-    # If the graph detected the cycle with 2+ agents, detector should skip
-    if graph.has_cycle:
-        cycle_agents = {
-            graph.nodes[n].agent_name
-            for cycle in graph.cycles
-            for n in cycle
-            if n in graph.nodes and graph.nodes[n].agent_name
-        }
-        if len(cycle_agents) >= 2:
-            assert not detector.evaluate(graph, signals), \
-                "Should not fire when agent_loop will handle the multi-agent cycle"
+
+    # Cycle involving two distinct agents — detector must defer to agent_loop
+    cycle_node_ids = [s.span_id for s in spans if s.kind.value == "agent_invoke"][:2]
+    with (
+        patch.object(graph, "has_cycle", True),
+        patch.object(graph, "cycles", [cycle_node_ids]),
+    ):
+        # Patch graph.nodes so the cycle nodes have distinct agent_names
+        graph.nodes[cycle_node_ids[0]].agent_name = "hermione"
+        graph.nodes[cycle_node_ids[1]].agent_name = "harry"
+        result = detector.evaluate(graph, signals)
+
+    assert result is None, "Should not fire when agent_loop will handle the multi-agent cycle"
 
 
 def test_no_fire_simple_chain_no_agent_steps():

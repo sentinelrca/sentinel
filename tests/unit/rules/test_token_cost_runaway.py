@@ -51,7 +51,7 @@ def test_fires_on_input_token_breach():
     assert insights[0].detector_id == "token_cost_runaway"
     ev = insights[0].evidence
     assert ev["total_input_tokens"] == _MAX_INPUT_TOKENS + 1
-    assert f"input tokens" in insights[0].detail
+    assert "input tokens" in insights[0].detail
 
 
 def test_fires_on_output_token_breach():
@@ -63,19 +63,22 @@ def test_fires_on_output_token_breach():
     assert "output tokens" in insights[0].detail
 
 
-def test_fires_on_total_token_breach_only():
-    # Neither input nor output breach individually, but combined they do
-    half = _MAX_TOTAL_TOKENS // 2 + 1
+def test_fires_when_aggregate_spans_exceed_input_threshold():
+    # No single LLM call exceeds _MAX_INPUT_TOKENS individually, but across
+    # two calls the aggregate total_input crosses the threshold. This is the
+    # realistic "death by a thousand moderate calls" pattern.
+    per_span = _MAX_INPUT_TOKENS // 2 + 1   # e.g. 25_001 — below per-call threshold
     spans = [
-        _llm_span("call_a", input_tokens=half, output_tokens=0, offset_ms=0),
-        _llm_span("call_b", input_tokens=half, output_tokens=0, offset_ms=600),
+        _llm_span("call_a", input_tokens=per_span, output_tokens=0, offset_ms=0),
+        _llm_span("call_b", input_tokens=per_span, output_tokens=0, offset_ms=600),
     ]
     graph = build_graph(spans)
     signals = extract_signals(graph)
     insights = detector.evaluate(graph, signals)
-    assert insights, "Expected insight when total tokens exceed combined threshold"
+    assert insights, "Expected insight when aggregate input tokens exceed threshold"
     ev = insights[0].evidence
-    assert ev["total_tokens"] > _MAX_TOTAL_TOKENS
+    assert ev["total_input_tokens"] == per_span * 2
+    assert ev["total_input_tokens"] > _MAX_INPUT_TOKENS
 
 
 def test_fires_with_multiple_llm_spans_summed():
