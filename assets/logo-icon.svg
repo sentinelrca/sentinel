@@ -1,13 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
-  <!-- Arrowhead markers -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 50" fill="none">
   <defs>
     <marker id="arrow-indigo" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
-      <path d="M0,0.5 L5,3 L0,5.5 Z" fill="#6366F1" fill-opacity="0.7"/>
+      <path d="M0,0.5 L5,3 L0,5.5 Z" fill="#6366F1" fill-opacity="0.8"/>
     </marker>
     <marker id="arrow-teal" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
-      <path d="M0,0.5 L5,3 L0,5.5 Z" fill="#0EA5E9" fill-opacity="0.7"/>
+      <path d="M0,0.5 L5,3 L0,5.5 Z" fill="#0EA5E9" fill-opacity="0.8"/>
     </marker>
-    <!-- Glow filter for teal node -->
     <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
       <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="blur"/>
       <feMerge>
@@ -17,30 +15,31 @@
     </filter>
   </defs>
 
-  <!-- Edges -->
-  <line x1="15" y1="13" x2="31" y2="13"
+  <!-- A→B: indigo edge (both nodes are indigo) -->
+  <line x1="15.5" y1="13" x2="31" y2="13"
         stroke="#6366F1" stroke-width="1.8" stroke-opacity="0.6"
         marker-end="url(#arrow-indigo)"/>
-  <line x1="12" y1="17.5" x2="20.5" y2="29.5"
-        stroke="#6366F1" stroke-width="1.8" stroke-opacity="0.6"
+
+  <!-- A→C and B→C: teal edges leading to the anomaly node -->
+  <line x1="13" y1="17.5" x2="21" y2="29"
+        stroke="#0EA5E9" stroke-width="1.8" stroke-opacity="0.6"
         marker-end="url(#arrow-teal)"/>
-  <line x1="36" y1="17.5" x2="27.5" y2="29.5"
-        stroke="#6366F1" stroke-width="1.8" stroke-opacity="0.6"
+  <line x1="35" y1="17.5" x2="27" y2="29"
+        stroke="#0EA5E9" stroke-width="1.8" stroke-opacity="0.6"
         marker-end="url(#arrow-teal)"/>
 
-  <!-- Node A (top-left) -->
+  <!-- Node A (top-left) — indigo -->
   <circle cx="10" cy="13" r="5.5" fill="#6366F1"/>
-  <circle cx="10" cy="13" r="5.5" fill="url(#n1)" fill-opacity="0.2"/>
 
-  <!-- Node B (top-right) -->
+  <!-- Node B (top-right) — indigo -->
   <circle cx="38" cy="13" r="5.5" fill="#6366F1"/>
 
-  <!-- Node C (bottom-center) — anomaly detected, teal glow -->
-  <circle cx="24" cy="35" r="8" fill="#0EA5E9" fill-opacity="0.15" filter="url(#glow)"/>
+  <!-- Node C (bottom-center) — teal, anomaly detected -->
+  <circle cx="24" cy="35" r="8"   fill="#0EA5E9" fill-opacity="0.15" filter="url(#glow)"/>
   <circle cx="24" cy="35" r="5.5" fill="#0EA5E9" filter="url(#glow)"/>
 
-  <!-- Pulse / heartbeat line -->
-  <path d="M4,44 L10,44 L12.5,39.5 L15,47 L17.5,40 L20,44 L44,44"
+  <!-- Pulse / heartbeat — 3px above bottom of viewBox -->
+  <path d="M4,45 L10,45 L12.5,41 L15,48 L17.5,41.5 L20,45 L44,45"
         stroke="#0EA5E9" stroke-width="1.6" fill="none"
         stroke-linecap="round" stroke-linejoin="round"/>
 </svg>
