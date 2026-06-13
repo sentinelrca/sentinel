@@ -13,6 +13,7 @@ from .routers.projects import router as projects_router
 from .routers.detector_configs import router as detector_configs_router
 from .routers.sources import router as sources_router
 from .routers.traces import router as traces_router
+from .routers.workspaces import router as workspaces_router
 
 app = FastAPI(title="SentinelAI API", version="0.1.0")
 
@@ -33,3 +34,4 @@ app.include_router(projects_router,    prefix="/v1")
 app.include_router(detector_configs_router, prefix="/v1")
 app.include_router(sources_router,     prefix="/v1")
 app.include_router(traces_router,      prefix="/v1")
+app.include_router(workspaces_router,  prefix="/v1")
