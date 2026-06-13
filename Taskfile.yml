@@ -8,44 +8,84 @@ vars:
     - services/worker
     - connectors/_base
     - connectors/langfuse
+    - connectors/langsmith
+    - connectors/arize
     - tools/cli
 
+dotenv: [".env"]
+
 tasks:
+  # ── Infrastructure ────────────────────────────────────────────────────────
+
   up:
-    desc: Start all infrastructure (Postgres, ClickHouse, Redis)
+    desc: Start infrastructure (Postgres, ClickHouse, Redis)
     cmd: docker compose up -d postgres clickhouse redis
     silent: false
 
   down:
-    desc: Stop all infrastructure
+    desc: Stop all infrastructure and services
     cmd: docker compose down
 
   up:all:
-    desc: Start infrastructure + all services
+    desc: Start full stack via Docker Compose (infra + API + worker + UI)
     cmd: docker compose up -d
 
   build:
     desc: Build all Docker images
     cmd: docker compose build
 
+  ps:
+    desc: Show running containers
+    cmd: docker compose ps
+
+  # ── Database ──────────────────────────────────────────────────────────────
+
   migrate:
-    desc: Run Postgres migrations
+    desc: Run Postgres migrations (reads DATABASE_URL from .env)
     dir: infra/migrations/postgres
-    cmd: uv run alembic upgrade head
+    cmd: uv run --no-project alembic upgrade head
+
+  migrate:clickhouse:
+    desc: Apply ClickHouse DDL (idempotent — safe to re-run)
+    cmds:
+      - curl -s http://localhost:8123/ -d "$(cat infra/migrations/clickhouse/001_spans.sql)"
+      - curl -s http://localhost:8123/ -d "$(cat infra/migrations/clickhouse/003_project_spans.sql)"
+      - echo "ClickHouse tables applied"
+
+  # ── Development servers ───────────────────────────────────────────────────
+
+  api:
+    desc: Start the FastAPI server (port 8000) — requires task up + task migrate
+    dir: services/api
+    cmd: uv run uvicorn sentinel_api.main:app --host 0.0.0.0 --port 8000 --reload
+
+  worker:
+    desc: Start the Celery worker
+    dir: services/worker
+    cmd: uv run celery -A sentinel_worker.main worker --loglevel=info
+
+  ui:
+    desc: Start the Next.js UI (port 3001)
+    dir: services/ui
+    cmd: npm run dev
+
+  # ── Tests ─────────────────────────────────────────────────────────────────
 
   test:
-    desc: Run all tests (unit only, no Docker required)
+    desc: Run unit tests (no Docker required)
     dir: tests
-    cmd: uv run pytest unit/ -v
+    cmd: uv run --no-project pytest unit/ -v
 
   test:integration:
     desc: Run integration tests (requires task up)
     dir: tests
-    cmd: uv run pytest integration/ -v
+    cmd: uv run --no-project pytest integration/ -v
 
   test:all:
     desc: Run all tests including integration
     deps: [test, test:integration]
+
+  # ── Code quality ──────────────────────────────────────────────────────────
 
   lint:
     desc: Run ruff linter across all Python services
@@ -58,23 +98,21 @@ tasks:
     cmd: uv run ruff format services/ connectors/ tools/ tests/
 
   sync:
-    desc: Install all Python dependencies across services
+    desc: Install dependencies across all Python services
     cmds:
       - for: { var: PYTHON_SERVICES }
         cmd: cd {{.ITEM}} && uv sync
 
+  # ── Logs ──────────────────────────────────────────────────────────────────
+
   logs:
-    desc: Tail logs from all running services
+    desc: Tail logs from all running containers
     cmd: docker compose logs -f
 
   logs:worker:
     desc: Tail worker logs
     cmd: docker compose logs -f worker
 
-  logs:ingestor:
-    desc: Tail ingestor logs
-    cmd: docker compose logs -f ingestor
-
-  ps:
-    desc: Show running containers
-    cmd: docker compose ps
+  logs:api:
+    desc: Tail API logs
+    cmd: docker compose logs -f api
