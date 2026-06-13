@@ -1,8 +1,16 @@
-# SentinelRCA
+<p align="center">
+  <img src="assets/logo.svg" alt="SentinelRCA" height="52"/>
+</p>
 
-**Diagnose failures. Optimize performance. Improve architecture. Scale with confidence. For AI agents.**
+<p align="center"><strong>Root cause analysis for AI agents.</strong></p>
 
-SentinelRCA connects to your existing observability tools (LangSmith, Langfuse, OpenTelemetry) and tells you *why* your AI agents fail, *what's slowing them down*, *what to fix before it becomes a production incident*, and *where your system breaks under load* — not just what happened.
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"/></a>
+  <img src="https://img.shields.io/badge/tests-340%20passing-brightgreen.svg" alt="Tests"/>
+  <a href="https://github.com/sentinelrca/sentinel/discussions"><img src="https://img.shields.io/badge/discussions-GitHub-blue?logo=github" alt="Discussions"/></a>
+</p>
+
+SentinelRCA connects to your existing observability tools (LangSmith, Langfuse, Arize Phoenix, OpenTelemetry) and tells you *why* your AI agents fail, *what's slowing them down*, and *what to fix* — not just what happened.
 
 ```
 $ sentinel analyze --source langsmith --api-key lsv2_pt_...
@@ -17,87 +25,60 @@ $ sentinel analyze --source langsmith --api-key lsv2_pt_...
 
 ---
 
-## The problem
+## Why SentinelRCA
 
-Langfuse and LangSmith show you a tree of spans. They tell you what your agent called and when. They don't tell you:
+Langfuse and LangSmith show you a tree of spans. They tell you *what* your agent called and *when*. They don't tell you:
 
 - Why your agent is looping between the same two sub-agents
 - Which tool calls could run in parallel and save 40% of latency
 - Why your costs are growing unbounded across a multi-turn session
 - That your agent has no memory layer and your users are repeating themselves
 
-SentinelRCA reconstructs the **call graph** from your traces and runs deterministic detectors against it to surface specific, actionable fixes — across three dimensions:
-
-| Dimension | What it catches |
-|---|---|
-| **Diagnose** | Agent loops, retry storms, retrieval failures, cascading errors |
-| **Optimize** | Sequential tools that could parallelize, latency spikes, context bloat, suboptimal model routing |
-| **Improve** | Missing memory layer, no guardrails, unvalidated LLM output, architectural gaps before they cause failures |
-| **Scale** | Fan-out rate limits, thundering herd, orchestrator bottlenecks, latency degradation under load |
+SentinelRCA reconstructs the **call graph** from your traces and runs deterministic detectors against it to surface specific, actionable fixes.
 
 ---
 
 ## Quickstart
 
-**CLI (stateless, no setup):**
-```bash
-cd tools/cli
-uv sync
-uv run sentinel analyze \
-  --source langsmith \
-  --api-key lsv2_pt_YOUR_KEY \
-  --project-name your-project
+Connect your observability source in 5 minutes:
 
-# or Langfuse
-uv run sentinel analyze \
-  --source langfuse \
-  --public-key pk-lf-... \
-  --secret-key sk-lf-...
-```
+| Source | Guide |
+|---|---|
+| Langfuse | [Connect Langfuse →](docs/quickstart-langfuse.md) |
+| LangSmith | [Connect LangSmith →](docs/quickstart-langsmith.md) |
+| Arize Phoenix | [Connect Arize Phoenix →](docs/quickstart-arize.md) |
 
-**Web UI (persistent insight feed + flow graph):**
+**Or use the CLI (no server needed):**
 ```bash
-task up   # starts Postgres + ClickHouse + Redis
-cd infra/migrations/postgres && uv run alembic upgrade head
-cd services/api && uv run uvicorn sentinel_api.main:app --port 8000
-cp services/ui/.env.local.example services/ui/.env.local
-cd services/ui && npm install && npm run dev   # http://localhost:3001
+cd tools/cli && uv sync
+uv run sentinel analyze --source langsmith --api-key lsv2_pt_YOUR_KEY
+uv run sentinel analyze --source langfuse  --public-key pk-lf-... --secret-key sk-lf-...
 ```
 
 ---
 
-## Detectors (M1/M2 — all open source)
+## Detectors — 8 open source, all free
 
-### Diagnose — why it failed
-
-| Detector | Detects | Severity |
+| Detector | What it catches | Severity |
 |---|---|---|
 | `agent_loop` | Same agent invoked 3+ times — infinite handoff | HIGH |
-| `retry_storm` | Same span retried 3+ times — rate limit or flaky tool | HIGH |
-| `retrieval_without_grounding` | Retrieval returns 0 results but LLM call fires — hallucination risk | HIGH |
-| `latency_spike` | Single span consumes >50% of total trace duration | WARNING |
-
-### Optimize — what's inefficient
-
-| Detector | Detects | Severity |
-|---|---|---|
-| `sequential_tools` | Two tools ran serially that could run in parallel | WARNING |
+| `retry_storm` | Same span retried 3+ times without backoff | HIGH |
+| `retrieval_without_grounding` | Empty retrieval followed by LLM call — hallucination risk | HIGH |
+| `missing_termination_condition` | Unbounded agent workflow with no iteration guard | HIGH |
+| `token_cost_runaway` | Single trace consuming anomalously high tokens | HIGH |
+| `latency_spike` | One span consuming >50% of total trace time | WARNING |
+| `sequential_tools` | Tool calls that could run in parallel | WARNING |
 | `context_cache_opportunity` | Input tokens growing unbounded across LLM calls | WARNING |
+| `missing_session_memory` | Token growth across turns with no memory tool calls | WARNING |
 
-### Improve — architectural gaps
-
-| Detector | Detects | Severity |
-|---|---|---|
-| `missing_session_memory` | Input tokens growing across turns with no memory tool calls — users are repeating themselves | WARNING |
-
-All detectors operate on trace structure only — **no prompt or response content is ever stored by default**.
+All detectors run on trace structure only — **no prompt or response content is ever stored by default**.
 
 ---
 
 ## Architecture
 
 ```
-Source (LangSmith / Langfuse / OTLP)
+Source (LangSmith / Langfuse / Arize / OTLP)
         ↓  connector.pull()
   list[NormalizedSpan]
         ↓  build_graph()
@@ -108,9 +89,9 @@ Source (LangSmith / Langfuse / OTLP)
       list[Insight]  ←  specific recommendation + evidence
 ```
 
-- **Connectors** — thin pull adapters, one per source, always free and open source
-- **Graph builder** — reconstructs parent-child tree, detects agent handoffs, cycle detection, clock skew correction
-- **Signal extractor** — critical path, sequential tool pairs, token growth, retry counts, session memory patterns
+- **Connectors** — thin pull adapters per source, always MIT licensed
+- **Graph builder** — reconstructs parent-child tree, cycle detection, clock skew correction
+- **Signal extractor** — critical path, sequential tool pairs, token growth, retry inference
 - **Detector engine** — deterministic pattern matching, no LLMs involved in detection
 
 ---
@@ -118,58 +99,32 @@ Source (LangSmith / Langfuse / OTLP)
 ## Self-hosting
 
 ```bash
-# Start infrastructure (Postgres, ClickHouse, Redis)
-task up
-
-# Run migrations
+# 1. Start infrastructure
+task up   # Postgres + ClickHouse + Redis
 cd infra/migrations/postgres && uv run alembic upgrade head
 
-# Start services
-cd services/api    && uv run uvicorn sentinel_api.main:app --reload --port 8000
-cd services/worker && uv run celery -A sentinel_worker.main worker --loglevel=info
+# 2. Start services
+cd services/api    && uv run uvicorn sentinel_api.main:app --port 8000
+cd services/worker && uv run celery -A sentinel_worker.main worker
 
-# Start web UI  →  http://localhost:3001
+# 3. Start UI → http://localhost:3001
 cp services/ui/.env.local.example services/ui/.env.local
-# edit .env.local: set SENTINEL_API_KEY to a valid workspace API key
 cd services/ui && npm install && npm run dev
 ```
 
-Or run the full stack with Docker Compose (includes UI on port 3001):
+Or run the full stack with Docker Compose:
 ```bash
-SENTINEL_API_KEY=sk-sentinel-dev docker compose up
+docker compose up
 ```
 
-Requires: Docker, [go-task](https://taskfile.dev), Python 3.12+, [uv](https://docs.astral.sh/uv/), Node.js 20+
-
----
-
-## Adding a connector
-
-```
-1. Create connectors/<source>/
-2. Implement Connector ABC from connectors/_base/src/sentinel_connectors/base.py
-3. Add tests in tests/unit/connectors/test_<source>.py
-4. Open a PR
-```
-
-Connectors are always MIT licensed. See [CLAUDE.md](CLAUDE.md) for the full guide.
-
----
-
-## Tests
-
-```bash
-cd tests
-uv sync --no-install-project
-uv run --no-project pytest unit/ -v   # 58 tests, no Docker needed
-```
+**Requirements:** Docker, [go-task](https://taskfile.dev), Python 3.12+, [uv](https://docs.astral.sh/uv/), Node.js 20+
 
 ---
 
 ## Data privacy
 
 - Prompt and response content is **never stored by default** (`store_content=False`)
-- Only structural metadata is stored: span IDs, timestamps, token counts, agent names, latency
+- Only structural metadata: span IDs, timestamps, token counts, agent names, latency
 - Fully self-hostable — traces never leave your network
 - `store_content=True` is an explicit opt-in per source
 
@@ -179,10 +134,29 @@ uv run --no-project pytest unit/ -v   # 58 tests, no Docker needed
 
 - [x] M1 — Langfuse connector, flow graph, 2 detectors, CLI
 - [x] M2 — LangSmith connector, 7 detectors, web UI, PII-safe by default
-- [ ] M3 — Arize + LangWatch connectors, docs, v1.0 GA, Starter billing
-- [ ] M4 — Detectors 8–17, email/Slack/PagerDuty alerting, insight lifecycle
+- [x] M3 — Arize Phoenix connector, 8 detectors, workspace API, v1.0 GA
+- [ ] M4 — Detectors 9–17, Slack/PagerDuty alerting, insight lifecycle
 - [ ] M5 — Cross-trace detectors, workflow discovery, Pro tier
 - [ ] M6 — SSO, on-prem Helm, custom detector builder, enterprise tier
+
+---
+
+## Community
+
+- **[GitHub Discussions](https://github.com/sentinelrca/sentinel/discussions)** — questions, ideas, show & tell
+- **[Issues](https://github.com/sentinelrca/sentinel/issues)** — bug reports and feature requests
+- Building a connector for a source we don't support? Open a discussion first so we can align on the interface.
+
+---
+
+## Contributing
+
+PRs welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the connector and detector authoring guides.
+
+```bash
+cd tests && uv sync --no-install-project
+uv run --no-project pytest unit/   # 340 tests, no Docker needed
+```
 
 ---
 
@@ -190,10 +164,4 @@ uv run --no-project pytest unit/ -v   # 58 tests, no Docker needed
 
 MIT — connectors and core pipeline.
 
-The commercial detector engine (`sentinel-engine`) is a separate private package. Free users get the 7 core detectors above. See [pricing](https://sentinelrca.com) for the hosted version.
-
----
-
-## Contributing
-
-Issues and PRs welcome. If you're building a connector for a source we don't support yet, open an issue first so we can align on the interface.
+The commercial detector engine (`sentinel-engine`) is a separate private package. Free users get all 8 core detectors. See [sentinelrca.com](https://sentinelrca.com) for the hosted version.
