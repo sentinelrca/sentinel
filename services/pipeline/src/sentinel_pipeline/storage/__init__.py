@@ -1,0 +1,40 @@
+"""Storage backend factory.
+
+Select backend via SENTINEL_STORAGE_BACKEND env var:
+  clickhouse  (default) — self-hosted Docker / on-prem
+  tinybird              — hosted SaaS (Tinybird free tier)
+
+Usage:
+    from sentinel_pipeline.storage import get_span_store
+    store = get_span_store()
+    store.insert_spans(spans)
+"""
+from __future__ import annotations
+
+import os
+
+from sentinel_pipeline.storage.base import SpanStore
+
+_instance: SpanStore | None = None
+
+
+def get_span_store() -> SpanStore:
+    """Return a cached SpanStore instance for the configured backend."""
+    global _instance
+    if _instance is None:
+        backend = os.environ.get("SENTINEL_STORAGE_BACKEND", "clickhouse").lower()
+        if backend == "tinybird":
+            from sentinel_pipeline.storage.tinybird import TinybirdSpanStore
+            _instance = TinybirdSpanStore()
+        elif backend == "clickhouse":
+            from sentinel_pipeline.storage.clickhouse import ClickHouseSpanStore
+            _instance = ClickHouseSpanStore()
+        else:
+            raise ValueError(
+                f"Unknown SENTINEL_STORAGE_BACKEND='{backend}'. "
+                "Valid values: clickhouse, tinybird"
+            )
+    return _instance
+
+
+__all__ = ["SpanStore", "get_span_store"]
