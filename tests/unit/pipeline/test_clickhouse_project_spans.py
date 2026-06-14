@@ -40,7 +40,7 @@ def _span(span_id: str, trace_id: str = "trace-1") -> NormalizedSpan:
 
 def test_insert_project_spans_calls_execute():
     mock_client = MagicMock()
-    with patch("sentinel_pipeline.db.clickhouse._get_client", return_value=mock_client):
+    with patch("sentinel_pipeline.storage.clickhouse._get_client", return_value=mock_client):
         spans = [_span("s1"), _span("s2")]
         insert_project_spans("proj-1", spans)
 
@@ -56,7 +56,7 @@ def test_insert_project_spans_calls_execute():
 
 def test_insert_project_spans_empty_list_is_noop():
     mock_client = MagicMock()
-    with patch("sentinel_pipeline.db.clickhouse._get_client", return_value=mock_client):
+    with patch("sentinel_pipeline.storage.clickhouse._get_client", return_value=mock_client):
         insert_project_spans("proj-1", [])
     mock_client.execute.assert_not_called()
 
@@ -64,14 +64,14 @@ def test_insert_project_spans_empty_list_is_noop():
 def test_insert_project_spans_raises_on_client_error():
     mock_client = MagicMock()
     mock_client.execute.side_effect = RuntimeError("CH down")
-    with patch("sentinel_pipeline.db.clickhouse._get_client", return_value=mock_client):
+    with patch("sentinel_pipeline.storage.clickhouse._get_client", return_value=mock_client):
         with pytest.raises(RuntimeError):
             insert_project_spans("proj-1", [_span("s1")])
 
 
 def test_insert_project_spans_serializes_attributes():
     mock_client = MagicMock()
-    with patch("sentinel_pipeline.db.clickhouse._get_client", return_value=mock_client):
+    with patch("sentinel_pipeline.storage.clickhouse._get_client", return_value=mock_client):
         span = _span("s1")
         span = span.model_copy(update={"attributes": {"key": "value"}})
         insert_project_spans("proj-1", [span])
@@ -97,7 +97,7 @@ def _raw_row(project_id="proj-1", trace_id="trace-1", span_id="s1"):
 def test_fetch_project_spans_returns_dicts():
     mock_client = MagicMock()
     mock_client.execute.return_value = [_raw_row()]
-    with patch("sentinel_pipeline.db.clickhouse._get_client", return_value=mock_client):
+    with patch("sentinel_pipeline.storage.clickhouse._get_client", return_value=mock_client):
         rows = fetch_project_spans("proj-1", "ws-1")
 
     assert len(rows) == 1
@@ -110,7 +110,7 @@ def test_fetch_project_spans_returns_dicts():
 def test_fetch_project_spans_passes_correct_params():
     mock_client = MagicMock()
     mock_client.execute.return_value = []
-    with patch("sentinel_pipeline.db.clickhouse._get_client", return_value=mock_client):
+    with patch("sentinel_pipeline.storage.clickhouse._get_client", return_value=mock_client):
         fetch_project_spans("proj-abc", "ws-xyz")
 
     params = mock_client.execute.call_args[0][1]
@@ -121,7 +121,7 @@ def test_fetch_project_spans_passes_correct_params():
 def test_fetch_project_spans_returns_empty_on_error():
     mock_client = MagicMock()
     mock_client.execute.side_effect = RuntimeError("CH down")
-    with patch("sentinel_pipeline.db.clickhouse._get_client", return_value=mock_client):
+    with patch("sentinel_pipeline.storage.clickhouse._get_client", return_value=mock_client):
         rows = fetch_project_spans("proj-1", "ws-1")
     assert rows == []
 
@@ -129,7 +129,7 @@ def test_fetch_project_spans_returns_empty_on_error():
 def test_fetch_project_spans_empty_result():
     mock_client = MagicMock()
     mock_client.execute.return_value = []
-    with patch("sentinel_pipeline.db.clickhouse._get_client", return_value=mock_client):
+    with patch("sentinel_pipeline.storage.clickhouse._get_client", return_value=mock_client):
         rows = fetch_project_spans("proj-1", "ws-1")
     assert rows == []
 
@@ -140,7 +140,7 @@ def test_fetch_project_spans_empty_result():
 
 def test_delete_project_spans_calls_alter_table():
     mock_client = MagicMock()
-    with patch("sentinel_pipeline.db.clickhouse._get_client", return_value=mock_client):
+    with patch("sentinel_pipeline.storage.clickhouse._get_client", return_value=mock_client):
         delete_project_spans("proj-1", "ws-1")
 
     mock_client.execute.assert_called_once()
@@ -154,5 +154,5 @@ def test_delete_project_spans_calls_alter_table():
 def test_delete_project_spans_swallows_error():
     mock_client = MagicMock()
     mock_client.execute.side_effect = RuntimeError("CH down")
-    with patch("sentinel_pipeline.db.clickhouse._get_client", return_value=mock_client):
+    with patch("sentinel_pipeline.storage.clickhouse._get_client", return_value=mock_client):
         delete_project_spans("proj-1", "ws-1")  # must not raise
