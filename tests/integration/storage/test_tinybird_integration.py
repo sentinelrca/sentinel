@@ -5,14 +5,22 @@ Requires env vars (skip automatically if absent):
   TINYBIRD_API_KEY  — Tinybird auth token
   TINYBIRD_HOST     — optional, defaults to https://api.tinybird.co
 
-Before running, create the datasources once:
-  pip install tinybird-cli
+Local Docker (no account needed):
+  docker run --platform linux/amd64 -p 7181:7181 --name tinybird-local \
+    -e COMPATIBILITY_MODE=1 -d tinybirdco/tinybird-local:latest
+  TOKEN=$(curl -s http://localhost:7181/tokens | python3 -c \
+    "import sys,json; print(json.load(sys.stdin)['workspace_admin_token'])")
+  # Datasources are auto-created on first Events API ingest — no tb push needed.
+  TINYBIRD_API_KEY=$TOKEN TINYBIRD_HOST=http://localhost:7181 \
+    uv run --no-project pytest integration/storage/test_tinybird_integration.py -v
+
+Tinybird Cloud:
+  # Sign up at app.tinybird.co (free tier, no credit card)
+  # Create datasources once:
+  uv tool install tinybird-cli
   tb auth --token $TINYBIRD_API_KEY
   tb push infra/tinybird/spans.datasource
   tb push infra/tinybird/project_spans.datasource
-
-Run:
-  cd tests
   TINYBIRD_API_KEY=... uv run --no-project pytest integration/storage/test_tinybird_integration.py -v
 """
 from __future__ import annotations
