@@ -16,6 +16,12 @@ import os
 from sentinel_pipeline.storage.base import SpanStore
 
 _instance: SpanStore | None = None
+# Note: the singleton is not protected by a threading.Lock. This is safe under
+# Celery's default prefork pool (each worker process has its own memory space).
+# Under threaded pools (gevent/eventlet), two tasks could both see _instance is
+# None and each construct a backend object. The worst outcome is two identical,
+# stateless instances being created briefly — not a correctness failure. If a
+# threaded pool is ever used in production, add a Lock here.
 
 
 def get_span_store() -> SpanStore:

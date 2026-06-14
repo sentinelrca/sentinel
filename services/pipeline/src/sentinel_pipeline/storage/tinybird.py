@@ -233,7 +233,8 @@ class TinybirdSpanStore:
     def delete_spans_older_than(self, workspace_id: str, cutoff_iso: str) -> None:
         wid = _safe_id(workspace_id, "workspace_id")
         try:
-            # cutoff_iso comes from _dt_to_sql() in the caller — already UTC, safe format
+            # cutoff_iso is a caller-formatted datetime string (strftime or _dt_to_sql output).
+            # Both T-separator and space-separator formats are accepted by Tinybird's SQL API.
             self._delete(
                 _SPANS_DS,
                 f"workspace_id = '{wid}' AND start_time < '{cutoff_iso}'",
