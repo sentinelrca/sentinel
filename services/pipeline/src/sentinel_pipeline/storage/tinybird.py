@@ -115,10 +115,18 @@ class TinybirdSpanStore:
         return resp.json().get("data", [])
 
     def _delete(self, datasource: str, condition: str) -> None:
-        """Delete rows using Tinybird's delete-by-condition endpoint."""
-        resp = httpx.delete(
-            f"{self._host}/v0/datasources/{datasource}/rows",
-            params={"delete_condition": condition},   # Tinybird requires 'delete_condition'
+        """Delete rows from a datasource using Tinybird's row-delete endpoint.
+
+        Correct endpoint: POST /v0/datasources/{name}/delete
+        with delete_condition as a POST body parameter.
+        Returns a Job object; row deletion is asynchronous.
+
+        WARNING: DELETE /v0/datasources/{name} (no /delete suffix) drops the
+        entire datasource — never call that URL for row-level deletion.
+        """
+        resp = httpx.post(
+            f"{self._host}/v0/datasources/{datasource}/delete",
+            data={"delete_condition": condition},
             headers=self._headers(),
             timeout=30,
         )

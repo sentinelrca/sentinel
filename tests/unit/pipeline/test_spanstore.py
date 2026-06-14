@@ -195,28 +195,39 @@ def test_insert_spans_noop_on_empty():
     mock_post.assert_not_called()
 
 
-def test_delete_spans_uses_delete_condition_param():
-    """Critical: must use 'delete_condition', not 'condition'."""
+def test_delete_spans_uses_correct_endpoint_and_param():
+    """POST /v0/datasources/{name}/delete with delete_condition in POST body."""
     store = _tb_store()
     mock_resp = MagicMock(); mock_resp.raise_for_status = MagicMock()
 
-    with patch("sentinel_pipeline.storage.tinybird.httpx.delete", return_value=mock_resp) as mock_del:
+    with patch("sentinel_pipeline.storage.tinybird.httpx.post", return_value=mock_resp) as mock_post:
         store.delete_spans_older_than("d98d339c-ed2b-4527-997e-b0983954fccd", "2026-01-01 00:00:00")
 
-    call_kwargs = mock_del.call_args[1]
-    assert "delete_condition" in call_kwargs["params"]
-    assert "condition" not in call_kwargs["params"]  # old wrong param name
-    assert "d98d339c-ed2b-4527-997e-b0983954fccd" in call_kwargs["params"]["delete_condition"]
+    # Find the delete call (not the SQL query call)
+    delete_call = next(
+        c for c in mock_post.call_args_list
+        if "/delete" in c[0][0]
+    )
+    url = delete_call[0][0]
+    assert url.endswith("/v0/datasources/spans/delete"), f"Wrong URL: {url}"
+    assert "delete_condition" in delete_call[1]["data"]
+    assert "d98d339c-ed2b-4527-997e-b0983954fccd" in delete_call[1]["data"]["delete_condition"]
 
 
-def test_delete_project_spans_uses_delete_condition_param():
+def test_delete_project_spans_uses_correct_endpoint_and_param():
     store = _tb_store()
     mock_resp = MagicMock(); mock_resp.raise_for_status = MagicMock()
 
-    with patch("sentinel_pipeline.storage.tinybird.httpx.delete", return_value=mock_resp) as mock_del:
+    with patch("sentinel_pipeline.storage.tinybird.httpx.post", return_value=mock_resp) as mock_post:
         store.delete_project_spans("5770266b-3a37-48eb-bc4e-3dbab1588a02", "d98d339c-ed2b-4527-997e-b0983954fccd")
 
-    params = mock_del.call_args[1]["params"]
+    delete_call = next(
+        c for c in mock_post.call_args_list
+        if "/delete" in c[0][0]
+    )
+    url = delete_call[0][0]
+    assert url.endswith("/v0/datasources/project_spans/delete"), f"Wrong URL: {url}"
+    params = delete_call[1]["data"]
     assert "delete_condition" in params
     assert "5770266b-3a37-48eb-bc4e-3dbab1588a02" in params["delete_condition"]
     assert "d98d339c-ed2b-4527-997e-b0983954fccd"   in params["delete_condition"]
