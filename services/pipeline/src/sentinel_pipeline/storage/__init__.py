@@ -37,4 +37,10 @@ def get_span_store() -> SpanStore:
     return _instance
 
 
-__all__ = ["SpanStore", "get_span_store"]
+def reset_span_store() -> None:
+    """Clear the cached instance — for use in tests only."""
+    global _instance
+    _instance = None
+
+
+__all__ = ["SpanStore", "get_span_store", "reset_span_store"]
