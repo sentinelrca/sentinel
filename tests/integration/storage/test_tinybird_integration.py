@@ -184,7 +184,7 @@ def test_count_distinct_traces():
     _wait_for_ingestion()
 
     count = store.count_distinct_traces(ws)
-    assert count >= 2, f"Expected >= 2 distinct traces, got {count}"
+    assert count == 2, f"Expected exactly 2 distinct traces, got {count}"
 
     _cleanup(store, ws)
 
@@ -366,3 +366,166 @@ def test_delete_project_spans():
 
     rows = store.fetch_project_spans(proj_id, ws)
     assert len(rows) == 0, f"Expected 0 rows after delete, got {len(rows)}"
+
+
+def test_fetch_project_trace_spans():
+    """fetch_project_trace_spans returns only spans for the specified trace."""
+    store    = _get_store()
+    _check_datasources(store)
+
+    ws       = _unique_ws()
+    proj_id  = uuid.uuid4().hex
+    trace_a  = uuid.uuid4().hex
+    trace_b  = uuid.uuid4().hex
+    sid_a    = uuid.uuid4().hex[:16]
+    sid_b    = uuid.uuid4().hex[:16]
+
+    store.insert_project_spans(proj_id, [
+        _span(trace_a, sid_a, ws),
+        _span(trace_b, sid_b, ws),
+    ])
+    _wait_for_ingestion()
+
+    rows = store.fetch_project_trace_spans(proj_id, trace_a, ws)
+    span_ids = [r["span_id"] for r in rows]
+    assert sid_a in span_ids,     f"sid_a {sid_a} should be returned"
+    assert sid_b not in span_ids, f"sid_b {sid_b} from trace_b should not be returned"
+
+    for p in [proj_id]:
+        try:
+            store.delete_project_spans(p, ws)
+        except Exception:
+            pass
+
+
+def test_fetch_project_spans_stats_batch():
+    """fetch_project_spans_stats_batch returns correct span_count and llm_calls."""
+    store    = _get_store()
+    _check_datasources(store)
+
+    ws       = _unique_ws()
+    proj_id  = uuid.uuid4().hex
+    trace_id = uuid.uuid4().hex
+
+    store.insert_project_spans(proj_id, [
+        _span(trace_id, uuid.uuid4().hex[:16], ws, kind=SpanKind.LLM_CALL,    offset_seconds=0),
+        _span(trace_id, uuid.uuid4().hex[:16], ws, kind=SpanKind.LLM_CALL,    offset_seconds=1),
+        _span(trace_id, uuid.uuid4().hex[:16], ws, kind=SpanKind.TOOL_INVOKE, offset_seconds=2),
+    ])
+    _wait_for_ingestion()
+
+    stats = store.fetch_project_spans_stats_batch(proj_id, [trace_id], ws)
+    assert trace_id in stats
+    s = stats[trace_id]
+    assert s["span_count"] == 3
+    assert s["llm_calls"]  == 2
+
+    try:
+        store.delete_project_spans(proj_id, ws)
+    except Exception:
+        pass
+
+
+# ---------------------------------------------------------------------------
+# Parity tests — fill gaps identified in self-review
+# ---------------------------------------------------------------------------
+
+def test_ensure_tables_is_noop():
+    """ensure_tables on Tinybird logs a message and makes no HTTP call."""
+    store = _get_store()
+    store.ensure_tables()   # must not raise
+
+
+def test_insert_spans_empty_is_noop():
+    store = _get_store()
+    _check_datasources(store)
+    store.insert_spans([])   # must not raise or make a network call
+
+
+def test_insert_project_spans_empty_is_noop():
+    store = _get_store()
+    _check_datasources(store)
+    store.insert_project_spans(_unique_ws(), [])   # must not raise
+
+
+def test_fetch_trace_stats_batch_empty_returns_empty():
+    store = _get_store()
+    _check_datasources(store)
+    assert store.fetch_trace_stats_batch([], _unique_ws()) == {}
+
+
+def test_fetch_project_spans_stats_batch_empty_returns_empty():
+    store = _get_store()
+    _check_datasources(store)
+    assert store.fetch_project_spans_stats_batch(_unique_ws(), [], _unique_ws()) == {}
+
+
+def test_fetch_spans_by_filter_with_trace_ids():
+    """fetch_spans_by_filter filters correctly when trace_ids is provided."""
+    store    = _get_store()
+    _check_datasources(store)
+
+    ws  = _unique_ws()
+    t1  = uuid.uuid4().hex
+    t2  = uuid.uuid4().hex
+    s1  = uuid.uuid4().hex[:16]
+    s2  = uuid.uuid4().hex[:16]
+
+    store.insert_spans([_span(t1, s1, ws), _span(t2, s2, ws)])
+    _wait_for_ingestion()
+
+    rows = store.fetch_spans_by_filter(ws, trace_ids=[t1])
+    ids  = {r["span_id"] for r in rows}
+    assert s1 in ids
+    assert s2 not in ids
+
+    _cleanup(store, ws)
+
+
+def test_workspace_isolation_fetch_trace_spans():
+    """Spans from a different workspace must not be returned."""
+    store  = _get_store()
+    _check_datasources(store)
+
+    ws_a     = _unique_ws()
+    ws_b     = _unique_ws()
+    trace_id = uuid.uuid4().hex
+    sid_a    = uuid.uuid4().hex[:16]
+    sid_b    = uuid.uuid4().hex[:16]
+
+    store.insert_spans([_span(trace_id, sid_a, ws_a), _span(trace_id, sid_b, ws_b)])
+    _wait_for_ingestion()
+
+    rows_a = store.fetch_trace_spans(trace_id, ws_a)
+    ids_a  = {r["span_id"] for r in rows_a}
+    assert sid_a in ids_a
+    assert sid_b not in ids_a, "Span from workspace B leaked into workspace A results"
+
+    _cleanup(store, ws_a)
+    _cleanup(store, ws_b)
+
+
+def test_project_spans_stats_includes_total_ms():
+    """fetch_project_spans_stats_batch must return total_ms."""
+    store    = _get_store()
+    _check_datasources(store)
+
+    ws       = _unique_ws()
+    proj_id  = uuid.uuid4().hex
+    trace_id = uuid.uuid4().hex
+
+    store.insert_project_spans(proj_id, [
+        _span(trace_id, uuid.uuid4().hex[:16], ws, offset_seconds=0),
+        _span(trace_id, uuid.uuid4().hex[:16], ws, offset_seconds=1),
+    ])
+    _wait_for_ingestion()
+
+    stats = store.fetch_project_spans_stats_batch(proj_id, [trace_id], ws)
+    assert trace_id in stats
+    assert "total_ms" in stats[trace_id]
+    assert stats[trace_id]["total_ms"] >= 0
+
+    try:
+        store.delete_project_spans(proj_id, ws)
+    except Exception:
+        pass

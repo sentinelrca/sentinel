@@ -292,3 +292,101 @@ def test_insert_project_spans_prepends_project_id():
     assert row["trace_id"]   == span.trace_id
     # Verify posted to project_spans datasource
     assert mock_post.call_args[1]["params"]["name"] == "project_spans"
+
+
+def test_count_distinct_traces_builds_correct_sql():
+    store = _tb_store()
+    mock_resp = MagicMock()
+    mock_resp.raise_for_status = MagicMock()
+    mock_resp.json.return_value = {"data": [{"n": "7"}]}
+
+    with patch("sentinel_pipeline.storage.tinybird.httpx.post", return_value=mock_resp) as mock_post:
+        count = store.count_distinct_traces(_WS_ID)
+
+    assert count == 7
+    sql = mock_post.call_args[1]["data"]["q"]
+    assert "count(DISTINCT trace_id)" in sql
+    assert _WS_ID in sql
+
+
+def test_fetch_trace_stats_batch_builds_correct_sql():
+    store = _tb_store()
+    mock_resp = MagicMock()
+    mock_resp.raise_for_status = MagicMock()
+    mock_resp.json.return_value = {"data": [{"trace_id": _TRACE_ID, "span_count": 3, "llm_calls": 2, "total_ms": 1500}]}
+
+    with patch("sentinel_pipeline.storage.tinybird.httpx.post", return_value=mock_resp) as mock_post:
+        result = store.fetch_trace_stats_batch([_TRACE_ID], _WS_ID)
+
+    assert _TRACE_ID in result
+    assert result[_TRACE_ID]["span_count"] == 3
+    sql = mock_post.call_args[1]["data"]["q"]
+    assert "countIf(kind = 'llm_call')" in sql
+    assert _TRACE_ID in sql
+
+
+def test_fetch_trace_stats_batch_empty_returns_early():
+    store = _tb_store()
+    with patch("sentinel_pipeline.storage.tinybird.httpx.post") as mock_post:
+        result = store.fetch_trace_stats_batch([], _WS_ID)
+    assert result == {}
+    mock_post.assert_not_called()
+
+
+def test_fetch_project_trace_spans_builds_correct_sql():
+    store = _tb_store()
+    mock_resp = MagicMock()
+    mock_resp.raise_for_status = MagicMock()
+    mock_resp.json.return_value = {"data": []}
+
+    with patch("sentinel_pipeline.storage.tinybird.httpx.post", return_value=mock_resp) as mock_post:
+        store.fetch_project_trace_spans(_PROJ_ID, _TRACE_ID, _WS_ID)
+
+    sql = mock_post.call_args[1]["data"]["q"]
+    assert "project_spans" in sql
+    assert f"project_id = '{_PROJ_ID}'" in sql
+    assert f"trace_id = '{_TRACE_ID}'" in sql
+    assert f"workspace_id = '{_WS_ID}'" in sql
+
+
+def test_fetch_project_spans_stats_batch_builds_correct_sql():
+    store = _tb_store()
+    mock_resp = MagicMock()
+    mock_resp.raise_for_status = MagicMock()
+    mock_resp.json.return_value = {"data": [{"trace_id": _TRACE_ID, "span_count": 5, "llm_calls": 3, "total_ms": 2000}]}
+
+    with patch("sentinel_pipeline.storage.tinybird.httpx.post", return_value=mock_resp) as mock_post:
+        result = store.fetch_project_spans_stats_batch(_PROJ_ID, [_TRACE_ID], _WS_ID)
+
+    assert _TRACE_ID in result
+    sql = mock_post.call_args[1]["data"]["q"]
+    assert "project_spans" in sql
+    assert f"project_id = '{_PROJ_ID}'" in sql
+
+
+def test_fetch_project_spans_stats_batch_empty_returns_early():
+    store = _tb_store()
+    with patch("sentinel_pipeline.storage.tinybird.httpx.post") as mock_post:
+        result = store.fetch_project_spans_stats_batch(_PROJ_ID, [], _WS_ID)
+    assert result == {}
+    mock_post.assert_not_called()
+
+
+def test_insert_project_spans_noop_on_empty():
+    store = _tb_store()
+    with patch("sentinel_pipeline.storage.tinybird.httpx.post") as mock_post:
+        store.insert_project_spans(_PROJ_ID, [])
+    mock_post.assert_not_called()
+
+
+def test_fetch_spans_by_filter_with_trace_ids():
+    store = _tb_store()
+    mock_resp = MagicMock()
+    mock_resp.raise_for_status = MagicMock()
+    mock_resp.json.return_value = {"data": []}
+
+    with patch("sentinel_pipeline.storage.tinybird.httpx.post", return_value=mock_resp) as mock_post:
+        store.fetch_spans_by_filter(_WS_ID, trace_ids=[_TRACE_ID])
+
+    sql = mock_post.call_args[1]["data"]["q"]
+    assert f"trace_id IN ('{_TRACE_ID}')" in sql
