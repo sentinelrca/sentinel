@@ -18,11 +18,9 @@ primary_region = "iad"
 # TINYBIRD_API_KEY, TINYBIRD_HOST
 
 # Workers don't serve HTTP — no [[services]] block needed.
-# min_machines_running=1 prevents Fly from scaling to zero (which would
-# stop Celery and silently drop all queued tasks).
-[machines]
-  min_machines_running = 1
-
+# Fly.io v2 does NOT auto-stop machines that have no HTTP service, so
+# Celery will keep running. If the process crashes, Fly.io restarts it.
+# After first deploy, confirm with: fly scale count 1 --app sentinel-worker
 [[vm]]
   size = "shared-cpu-1x"
   memory = "512mb"   # more RAM for span processing
