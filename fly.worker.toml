@@ -1,0 +1,26 @@
+# Fly.io config for SentinelRCA Celery worker
+# Deploy: fly deploy --config fly.worker.toml
+# First time: fly launch --no-deploy --config fly.worker.toml
+
+app = "sentinel-worker"
+primary_region = "iad"
+
+[build]
+  dockerfile = "services/worker/Dockerfile"
+
+[env]
+  SENTINEL_ENV = "production"
+  SENTINEL_STORAGE_BACKEND = "tinybird"
+
+# Same secrets as sentinel-api — set via:
+# fly secrets set KEY=value --config fly.worker.toml
+# DATABASE_URL, REDIS_URL, SENTINEL_SECRET_KEY,
+# TINYBIRD_API_KEY, TINYBIRD_HOST
+
+# Workers don't serve HTTP — no [[services]] block needed.
+# Fly.io v2 does NOT auto-stop machines that have no HTTP service, so
+# Celery will keep running. If the process crashes, Fly.io restarts it.
+# After first deploy, confirm with: fly scale count 1 --app sentinel-worker
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"   # more RAM for span processing
