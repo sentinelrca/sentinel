@@ -17,7 +17,12 @@ primary_region = "iad"
 # DATABASE_URL, REDIS_URL, SENTINEL_SECRET_KEY,
 # TINYBIRD_API_KEY, TINYBIRD_HOST
 
-# Workers don't serve HTTP — no [[services]] block needed
+# Workers don't serve HTTP — no [[services]] block needed.
+# min_machines_running=1 prevents Fly from scaling to zero (which would
+# stop Celery and silently drop all queued tasks).
+[machines]
+  min_machines_running = 1
+
 [[vm]]
   size = "shared-cpu-1x"
   memory = "512mb"   # more RAM for span processing

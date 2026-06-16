@@ -27,12 +27,19 @@ fly auth login
 
 1. Sign up at [neon.tech](https://neon.tech) (free tier)
 2. Create a project → copy the connection string
-3. It looks like: `postgresql://user:pass@ep-xxx.us-east-2.aws.neon.tech/neondb?sslmode=require`
+3. **Important:** prefix must be `postgresql+asyncpg://` for SQLAlchemy async.
+   Neon gives you `postgresql://...` — change the prefix:
+   ```
+   postgresql+asyncpg://user:pass@ep-xxx.us-east-2.aws.neon.tech/neondb?sslmode=require
+   ```
 
 ### Upstash (Redis)
 
 1. Sign up at [upstash.com](https://upstash.com) (free tier)
-2. Create a Redis database → copy the `UPSTASH_REDIS_REST_URL` **not** the REST URL — use the **Redis URL** which looks like: `rediss://default:xxx@xxx.upstash.io:6380`
+2. Create a Redis database → use the **Redis URL** (not the REST URL):
+   ```
+   rediss://default:xxx@xxx.upstash.io:6380
+   ```
 
 ---
 
@@ -48,7 +55,19 @@ openssl rand -hex 32
 
 ---
 
-## Step 3 — Deploy the API
+## Step 3 — Run Postgres migrations (before deploy)
+
+Run migrations from your local machine pointing at Neon — the Docker image
+does not include the `alembic` config or migration scripts.
+
+```bash
+cd infra/migrations/postgres
+DATABASE_URL="postgresql+asyncpg://..." uv run --no-project alembic upgrade head
+```
+
+---
+
+## Step 4 — Deploy the API
 
 ```bash
 # Create the app (first time only)
@@ -56,49 +75,33 @@ fly launch --no-deploy --config fly.toml
 
 # Set all secrets
 fly secrets set \
-  DATABASE_URL="postgresql://..." \
+  DATABASE_URL="postgresql+asyncpg://..." \
   REDIS_URL="rediss://..." \
   SENTINEL_SECRET_KEY="your-fernet-key" \
   SENTINEL_ADMIN_KEY="your-admin-key" \
   TINYBIRD_API_KEY="p.eyJ1IjogI..." \
   TINYBIRD_HOST="https://api.us-east.aws.tinybird.co" \
+  CORS_ORIGINS="https://your-app.vercel.app" \
   --config fly.toml
-
-# Run Postgres migrations
-fly ssh console --config fly.toml -C \
-  "cd /app && python -c \"
-import asyncio, os
-os.environ.setdefault('DATABASE_URL', os.environ['DATABASE_URL'])
-from sentinel_pipeline.db.postgres import engine
-from sentinel_pipeline.db.postgres import Base
-asyncio.run(engine.sync_engine.dispose())
-\""
-# Note: run migrations separately — see below
 
 # Deploy
 fly deploy --config fly.toml
 ```
 
-### Run migrations
-
-Migrations run from the local machine pointing at Neon:
-
-```bash
-cd infra/migrations/postgres
-DATABASE_URL="postgresql://..." uv run --no-project alembic upgrade head
-```
+> **CORS_ORIGINS** must match your Vercel URL exactly (set it now even if you
+> don't know the URL yet — update it after Vercel deployment in Step 6).
 
 ---
 
-## Step 4 — Deploy the worker
+## Step 5 — Deploy the worker
 
 ```bash
 # Create the worker app (first time only)
 fly launch --no-deploy --config fly.worker.toml
 
-# Copy the same secrets
+# Same secrets as the API
 fly secrets set \
-  DATABASE_URL="postgresql://..." \
+  DATABASE_URL="postgresql+asyncpg://..." \
   REDIS_URL="rediss://..." \
   SENTINEL_SECRET_KEY="your-fernet-key" \
   TINYBIRD_API_KEY="p.eyJ1IjogI..." \
@@ -111,7 +114,7 @@ fly deploy --config fly.worker.toml
 
 ---
 
-## Step 5 — Create your first workspace
+## Step 6 — Create your first workspace
 
 ```bash
 API_URL="https://sentinel-api.fly.dev"
@@ -122,20 +125,25 @@ curl -X POST $API_URL/v1/workspaces \
   -d '{"name": "my-workspace", "tier": 1}'
 ```
 
-Copy the `api_key` from the response — shown once only.
+Copy the `api_key` from the response — **shown once only**.
 
 ---
 
-## Step 6 — Deploy the UI to Vercel
+## Step 7 — Deploy the UI to Vercel
 
 1. Go to [vercel.com](https://vercel.com) → New Project → Import `sentinelrca/sentinel`
 2. Set root directory to `services/ui`
 3. Add environment variables:
    ```
    SENTINEL_API_URL=https://sentinel-api.fly.dev
-   SENTINEL_API_KEY=sk-sentinel-<your-workspace-api-key>
+   SENTINEL_API_KEY=sk-sentinel-<workspace-api-key-from-step-6>
    ```
-4. Deploy → get your URL
+4. Deploy → note the URL (e.g. `https://sentinel-ui.vercel.app`)
+5. Update `CORS_ORIGINS` on the API to match:
+   ```bash
+   fly secrets set CORS_ORIGINS="https://sentinel-ui.vercel.app" --config fly.toml
+   fly deploy --config fly.toml
+   ```
 
 ---
 

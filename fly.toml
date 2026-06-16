@@ -12,14 +12,19 @@ primary_region = "iad"   # us-east — matches Tinybird us-east-1 AWS
   SENTINEL_ENV = "production"
   SENTINEL_STORAGE_BACKEND = "tinybird"
 
-# Secrets (set once via: fly secrets set KEY=value --config fly.toml)
-# DATABASE_URL        — Neon Postgres connection string
-# REDIS_URL           — Upstash Redis URL
-# SENTINEL_SECRET_KEY — Fernet key (python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
-# SENTINEL_ADMIN_KEY  — Admin key (openssl rand -hex 32)
-# SENTINEL_API_KEY    — Workspace API key for UI (created via POST /v1/workspaces)
+# Secrets — set once via: fly secrets set KEY=value --config fly.toml
+#
+# DATABASE_URL        — Neon Postgres (must be postgresql+asyncpg:// prefix)
+#                       e.g. postgresql+asyncpg://user:pass@ep-xxx.neon.tech/neondb?sslmode=require
+# REDIS_URL           — Upstash Redis URL (rediss://...)
+# SENTINEL_SECRET_KEY — Fernet key: python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+# SENTINEL_ADMIN_KEY  — Admin key: openssl rand -hex 32
 # TINYBIRD_API_KEY    — Tinybird workspace admin token
 # TINYBIRD_HOST       — https://api.us-east.aws.tinybird.co
+# CORS_ORIGINS        — Vercel UI URL, e.g. https://sentinel-ui.vercel.app
+#
+# NOTE: SENTINEL_API_KEY is created AFTER first deploy via POST /v1/workspaces
+#       Set it on the UI side (Vercel env vars), not here.
 
 [[services]]
   internal_port = 8000
@@ -33,7 +38,7 @@ primary_region = "iad"   # us-east — matches Tinybird us-east-1 AWS
     port = 80
     handlers = ["http"]
 
-  [services.http_checks]
+  [[services.http_checks]]
     interval = "15s"
     timeout = "5s"
     grace_period = "30s"
