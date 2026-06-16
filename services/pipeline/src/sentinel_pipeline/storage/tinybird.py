@@ -18,6 +18,7 @@ import json
 import logging
 import os
 import re
+import time
 from datetime import datetime, timezone
 
 import httpx
@@ -94,24 +95,22 @@ class TinybirdSpanStore:
     def _ingest(self, datasource: str, rows: list[dict]) -> None:
         """POST rows to Tinybird Events API as NDJSON."""
         ndjson = "\n".join(json.dumps(r) for r in rows)
-        resp = httpx.post(
+        self._request_with_retry(
+            "post",
             f"{self._host}/v0/events",
             params={"name": datasource},
             content=ndjson.encode(),
             headers={**self._headers(), "Content-Type": "application/x-ndjson"},
-            timeout=30,
         )
-        resp.raise_for_status()
 
     def _query(self, sql: str) -> list[dict]:
         """Run SQL against Tinybird SQL API, return list of row dicts."""
-        resp = httpx.post(
+        resp = self._request_with_retry(
+            "post",
             f"{self._host}/v0/sql",
             data={"q": sql + " FORMAT JSON"},
             headers=self._headers(),
-            timeout=30,
         )
-        resp.raise_for_status()
         return resp.json().get("data", [])
 
     def _delete(self, datasource: str, condition: str) -> None:
@@ -124,13 +123,34 @@ class TinybirdSpanStore:
         WARNING: DELETE /v0/datasources/{name} (no /delete suffix) drops the
         entire datasource — never call that URL for row-level deletion.
         """
-        resp = httpx.post(
+        self._request_with_retry(
+            "post",
             f"{self._host}/v0/datasources/{datasource}/delete",
             data={"delete_condition": condition},
             headers=self._headers(),
-            timeout=30,
         )
+
+    def _request_with_retry(
+        self, method: str, url: str, *, max_retries: int = 3, **kwargs
+    ) -> httpx.Response:
+        """Send an HTTP request, retrying on 429 with exponential backoff."""
+        kwargs.setdefault("timeout", 30)
+        for attempt in range(max_retries):
+            resp = getattr(httpx, method)(url, **kwargs)
+            if resp.status_code == 429:
+                wait = 2 ** attempt  # 1s, 2s, 4s
+                logger.warning(
+                    "Tinybird rate limit (429) on %s — retrying in %ds (attempt %d/%d)",
+                    url, wait, attempt + 1, max_retries,
+                )
+                time.sleep(wait)
+                continue
+            resp.raise_for_status()
+            return resp
+        # Final attempt
+        resp = getattr(httpx, method)(url, **kwargs)
         resp.raise_for_status()
+        return resp
 
     # ── Setup ──────────────────────────────────────────────────────────────
 

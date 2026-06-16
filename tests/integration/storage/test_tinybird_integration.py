@@ -106,8 +106,15 @@ def _span(
     )
 
 
-def _wait_for_ingestion(seconds: int = 3) -> None:
+def _wait_for_ingestion(seconds: int = 4) -> None:
     """Tinybird Events API ingestion is asynchronous — wait briefly before querying."""
+    time.sleep(seconds)
+
+
+def _wait_for_deletion(seconds: int = 35) -> None:
+    """Tinybird row deletion is a queued async Job. On Cloud it typically completes
+    within 30 seconds but can take longer on the free tier. On local Docker,
+    it completes within ~5 seconds."""
     time.sleep(seconds)
 
 
@@ -277,7 +284,7 @@ def test_delete_spans_older_than():
 
     cutoff = _dt_to_sql(datetime(2025, 1, 1, 0, 0, 0, tzinfo=timezone.utc))
     store.delete_spans_older_than(ws, cutoff)
-    _wait_for_ingestion(5)   # mutations are async — wait a bit longer
+    _wait_for_deletion()  # Cloud jobs take ~30s
 
     rows = store.fetch_trace_spans(trace_id, ws)
     ids  = {r["span_id"] for r in rows}
@@ -362,7 +369,7 @@ def test_delete_project_spans():
     _wait_for_ingestion()
 
     store.delete_project_spans(proj_id, ws)
-    _wait_for_ingestion(5)
+    _wait_for_deletion()
 
     rows = store.fetch_project_spans(proj_id, ws)
     assert len(rows) == 0, f"Expected 0 rows after delete, got {len(rows)}"
