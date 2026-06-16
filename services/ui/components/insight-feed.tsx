@@ -5,7 +5,13 @@ import { useSearchParams } from "next/navigation";
 import InsightCard from "./insight-card";
 import type { Insight } from "@/lib/types";
 
-const SEVERITIES = ["CRITICAL", "HIGH", "WARNING", "INFO"];
+const SEVERITIES = ["critical", "high", "warning", "info"];
+const SEVERITY_LABELS: Record<string, string> = {
+  critical: "CRITICAL",
+  high: "HIGH",
+  warning: "WARNING",
+  info: "INFO",
+};
 
 interface Props {
   items: Insight[];
@@ -61,7 +67,7 @@ export default function InsightFeed({
                 : "text-slate-600 hover:bg-slate-100"
             }`}
           >
-            {s}
+            {SEVERITY_LABELS[s]}
           </Link>
         ))}
       </div>
