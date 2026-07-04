@@ -21,10 +21,8 @@ primary_region = "iad"   # us-east — matches Tinybird us-east-1 AWS
 # SENTINEL_ADMIN_KEY  — Admin key: openssl rand -hex 32
 # TINYBIRD_API_KEY    — Tinybird workspace admin token
 # TINYBIRD_HOST       — https://api.us-east.aws.tinybird.co
-# CORS_ORIGINS        — Vercel UI URL, e.g. https://sentinel-ui.vercel.app
-#
 # NOTE: SENTINEL_API_KEY is created AFTER first deploy via POST /v1/workspaces
-#       Set it on the UI side (Vercel env vars), not here.
+#       Set it as a Fly secret on sentinel-ui: fly secrets set SENTINEL_API_KEY=... --config fly.ui.toml
 
 [[services]]
   internal_port = 8000
