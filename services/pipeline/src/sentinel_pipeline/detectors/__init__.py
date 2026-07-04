@@ -5,6 +5,7 @@ Open source detectors are registered here. The commercial sentinel-engine packag
 appends additional detectors to DETECTOR_REGISTRY at import time when installed.
 """
 from sentinel_pipeline.detectors.base import Detector
+from sentinel_pipeline.detectors.unused_llm_output import UnusedLlmOutputDetector
 from sentinel_pipeline.detectors.agent_loop import AgentLoopDetector
 from sentinel_pipeline.detectors.sequential_tools import SequentialToolsDetector
 from sentinel_pipeline.detectors.missing_termination_condition import MissingTerminationConditionDetector
@@ -23,6 +24,7 @@ DETECTOR_REGISTRY: list[Detector] = [
     LatencySpikeDetector(),
     ContextCacheOpportunityDetector(),
     RetrievalWithoutGroundingDetector(),
+    UnusedLlmOutputDetector(),
 ]
 
 # Commercial engine hook: try to load additional detectors from sentinel_engine if installed.
