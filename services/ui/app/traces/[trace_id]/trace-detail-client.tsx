@@ -8,7 +8,7 @@ import SeverityBadge from "@/components/severity-badge";
 import IssueActionMenu from "@/components/issue-action-menu";
 import { patchInsight, putRuleConfig } from "@/lib/api";
 import { clsx } from "clsx";
-import type { FlowGraph, FlowNode, Insight } from "@/lib/types";
+import type { FlowGraph, FlowNode, Insight, Severity } from "@/lib/types";
 
 interface Props {
   flow: FlowGraph | null;
@@ -57,7 +57,7 @@ export default function TraceDetailClient({ flow, insights: initialInsights, tra
     await putRuleConfig(ruleId, { action: "DISABLED" }).catch(() => setInsights(snapshot));
   }
 
-  async function handleChangeSeverity(id: string, severity: string, applyToAll: boolean) {
+  async function handleChangeSeverity(id: string, severity: Severity, applyToAll: boolean) {
     const insight = insights.find((i) => i.id === id);
     if (!insight) return;
     const snapshot = insights;

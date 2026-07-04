@@ -1,0 +1,40 @@
+# Fly.io config for SentinelRCA UI (Next.js)
+# Deploy: fly deploy --config fly.ui.toml
+# First time: fly launch --no-deploy --config fly.ui.toml
+
+app = "sentinel-ui"
+primary_region = "iad"
+
+[build]
+  dockerfile = "services/ui/Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+
+# Secrets — set once via: fly secrets set KEY=value --config fly.ui.toml
+#
+# SENTINEL_API_URL — internal Fly URL for the API, e.g. https://sentinel-api.fly.dev
+# SENTINEL_API_KEY — workspace API key created via POST /v1/workspaces
+
+[[services]]
+  internal_port = 3001
+  protocol = "tcp"
+
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+
+  [[services.http_checks]]
+    interval = "15s"
+    timeout = "5s"
+    grace_period = "30s"
+    method = "get"
+    path = "/"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

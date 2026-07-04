@@ -3,16 +3,17 @@
 import { useEffect, useRef, useState } from "react";
 import { MoreHorizontal } from "lucide-react";
 import { clsx } from "clsx";
+import type { Severity } from "@/lib/types";
 
-const SEVERITIES = ["critical", "high", "warning", "info"] as const;
+const SEVERITIES: Severity[] = ["critical", "high", "warning", "info"];
 
 interface Props {
   insightId: string;
   ruleId: string;
-  currentSeverity: string;
+  currentSeverity: Severity;
   onIgnoreInstance: (id: string) => void;
   onIgnoreRule: (ruleId: string) => void;
-  onChangeSeverity: (id: string, severity: string, applyToAll: boolean) => void;
+  onChangeSeverity: (id: string, severity: Severity, applyToAll: boolean) => void;
 }
 
 export default function IssueActionMenu({
@@ -48,7 +49,7 @@ export default function IssueActionMenu({
     onIgnoreRule(ruleId);
   }
 
-  function handleSeverity(sev: string) {
+  function handleSeverity(sev: Severity) {
     setOpen(false);
     onChangeSeverity(insightId, sev, applyToAll);
   }
