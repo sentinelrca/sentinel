@@ -7,11 +7,9 @@ primary_region = "iad"
 
 [build]
   dockerfile = "services/ui/Dockerfile"
-  build_target = "runner"
 
 [env]
   NODE_ENV = "production"
-  PORT = "3001"
 
 # Secrets — set once via: fly secrets set KEY=value --config fly.ui.toml
 #
