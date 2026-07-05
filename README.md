@@ -35,7 +35,7 @@ Langfuse and LangSmith show you a tree of spans. They tell you *what* your agent
 - Why your agent is looping between the same two sub-agents
 - Which tool calls could run in parallel and save 40% of latency
 - Why your costs are growing unbounded across a multi-turn session
-- That your agent has no memory layer and your users are repeating themselves
+- That a single retrieval timeout silently cascaded into a full trace failure
 
 SentinelRCA reconstructs the **call graph** from your traces and runs deterministic detectors against it to surface specific, actionable fixes.
 
@@ -74,6 +74,19 @@ uv run sentinel analyze --source langfuse  --public-key pk-lf-... --secret-key s
 | `context_cache_opportunity` | Input tokens growing unbounded across LLM calls | WARNING |
 
 All detectors run on trace structure only — **no prompt or response content is ever stored by default**.
+
+---
+
+## Projects — offline batch analysis
+
+Beyond live trace monitoring, SentinelRCA lets you create **Projects**: import a snapshot of traces from a date range, run all detectors across the batch, and explore results trace-by-trace in the UI.
+
+Use this to:
+- **Debug a regression** — import traces from before and after a deploy, compare insight counts
+- **Audit a model swap** — snapshot 500 traces from the old model, 500 from the new, see which detectors fire more
+- **Investigate an incident** — pull the exact traces from a 2-hour window and do offline RCA
+
+Projects are available in the web UI and via the REST API (`POST /v1/projects`).
 
 ---
 
@@ -136,8 +149,8 @@ docker compose up
 
 - [x] M1 — Langfuse connector, flow graph, 2 detectors, CLI
 - [x] M2 — LangSmith connector, 7 detectors, web UI, PII-safe by default
-- [x] M3 — Arize Phoenix connector, 8 detectors, workspace API, v1.0 GA
-- [ ] M4 — Detectors 9–17, Slack/PagerDuty alerting, insight lifecycle
+- [x] M3 — Arize Phoenix connector, 8 detectors, workspace API, self-host ready
+- [ ] M4 — More detectors, Slack/PagerDuty alerting, insight lifecycle
 - [ ] M5 — Cross-trace detectors, workflow discovery, Pro tier
 - [ ] M6 — SSO, on-prem Helm, custom detector builder, enterprise tier
 
@@ -157,7 +170,7 @@ PRs welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the connector and detect
 
 ```bash
 cd tests && uv sync --no-install-project
-uv run --no-project pytest unit/   # 340 tests, no Docker needed
+uv run --no-project pytest unit/   # 373 tests, no Docker needed
 ```
 
 ---
