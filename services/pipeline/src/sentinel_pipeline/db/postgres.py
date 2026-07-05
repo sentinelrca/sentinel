@@ -42,10 +42,10 @@ class Base(DeclarativeBase):
 class WorkspaceRow(Base):
     __tablename__ = "workspaces"
 
-    id         = Column(String, primary_key=True)
-    name       = Column(String, nullable=False)
+    id = Column(String, primary_key=True)
+    name = Column(String, nullable=False)
     api_key_hash = Column(String, nullable=False, unique=True)
-    tier       = Column(Integer, nullable=False, default=0)  # maps to Tier enum
+    tier = Column(Integer, nullable=False, default=0)  # maps to Tier enum
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -61,38 +61,38 @@ class SourceRow(Base):
     #   [future M5] mask_pii (bool, default False): when True and store_content is True,
     #     apply PII redaction before storing content in span attributes.
 
-    id             = Column(String, primary_key=True)
-    workspace_id   = Column(String, nullable=False)
-    kind           = Column(String, nullable=False)   # "langfuse" | "langsmith" | ...
-    config_json    = Column(JSON,   nullable=False)   # encrypted at rest in production
+    id = Column(String, primary_key=True)
+    workspace_id = Column(String, nullable=False)
+    kind = Column(String, nullable=False)  # "langfuse" | "langsmith" | ...
+    config_json = Column(JSON, nullable=False)  # encrypted at rest in production
     last_synced_at = Column(DateTime(timezone=True), nullable=True)
-    created_at     = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
 class DetectorConfigRow(Base):
     __tablename__ = "detector_configs"
 
-    id           = Column(String, primary_key=True)
+    id = Column(String, primary_key=True)
     workspace_id = Column(String, nullable=False)
-    detector_id  = Column(String, nullable=False)
-    action       = Column(String, nullable=False)   # 'DISABLED' | 'OVERRIDE_SEVERITY'
-    severity     = Column(String, nullable=True)
-    created_at   = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at   = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    detector_id = Column(String, nullable=False)
+    action = Column(String, nullable=False)  # 'DISABLED' | 'OVERRIDE_SEVERITY'
+    severity = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
 class ProjectRow(Base):
     __tablename__ = "projects"
 
     # status values: 'pending' | 'importing' | 'ready' | 'error'
-    id               = Column(String,  primary_key=True)
-    workspace_id     = Column(String,  nullable=False)
-    name             = Column(String,  nullable=False)
-    filters          = Column(JSON,    nullable=False, default=dict)
-    status           = Column(String,  nullable=False, default="pending")
-    trace_count      = Column(Integer, nullable=False, default=0)
-    import_count     = Column(Integer, nullable=False, default=0)
-    created_at       = Column(DateTime(timezone=True), server_default=func.now())
+    id = Column(String, primary_key=True)
+    workspace_id = Column(String, nullable=False)
+    name = Column(String, nullable=False)
+    filters = Column(JSON, nullable=False, default=dict)
+    status = Column(String, nullable=False, default="pending")
+    trace_count = Column(Integer, nullable=False, default=0)
+    import_count = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
     last_imported_at = Column(DateTime(timezone=True), nullable=True)
     last_analyzed_at = Column(DateTime(timezone=True), nullable=True)
 
@@ -100,16 +100,16 @@ class ProjectRow(Base):
 class InsightRow(Base):
     __tablename__ = "insights"
 
-    id                 = Column(String, primary_key=True)
-    workspace_id       = Column(String, nullable=False, index=True)
-    trace_id           = Column(String, nullable=False, index=True)
-    detector_id        = Column(String, nullable=False)
-    severity           = Column(String, nullable=False)
-    title              = Column(String, nullable=False)
-    detail             = Column(Text,   nullable=False)
-    recommendation     = Column(Text,   nullable=False)
-    affected_span_ids  = Column(JSON,   nullable=False, default=list)
-    evidence           = Column(JSON,   nullable=False, default=dict)
-    status             = Column(String, nullable=False, default="open")
-    project_id         = Column(String, nullable=True, index=True)
-    created_at         = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    id = Column(String, primary_key=True)
+    workspace_id = Column(String, nullable=False, index=True)
+    trace_id = Column(String, nullable=False, index=True)
+    detector_id = Column(String, nullable=False)
+    severity = Column(String, nullable=False)
+    title = Column(String, nullable=False)
+    detail = Column(Text, nullable=False)
+    recommendation = Column(Text, nullable=False)
+    affected_span_ids = Column(JSON, nullable=False, default=list)
+    evidence = Column(JSON, nullable=False, default=dict)
+    status = Column(String, nullable=False, default="open")
+    project_id = Column(String, nullable=True, index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)

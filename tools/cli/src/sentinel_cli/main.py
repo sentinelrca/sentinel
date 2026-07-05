@@ -10,6 +10,7 @@ Exit codes:
     0  No insights found
     1  One or more insights found (CI-safe)
 """
+
 from __future__ import annotations
 
 import json
@@ -32,9 +33,9 @@ _CONNECTORS = {
 }
 
 _SEVERITY_COLORS = {
-    Severity.INFO:     "cyan",
-    Severity.WARNING:  "yellow",
-    Severity.HIGH:     "red",
+    Severity.INFO: "cyan",
+    Severity.WARNING: "yellow",
+    Severity.HIGH: "red",
     Severity.CRITICAL: "bold red",
 }
 
@@ -45,10 +46,10 @@ def cli() -> None:
 
 
 @cli.command()
-@click.option("--source",     required=True, type=click.Choice(["langfuse"]))
+@click.option("--source", required=True, type=click.Choice(["langfuse"]))
 @click.option("--public-key", required=True, envvar="LANGFUSE_PUBLIC_KEY")
 @click.option("--secret-key", required=True, envvar="LANGFUSE_SECRET_KEY")
-@click.option("--base-url",   default=None,  envvar="LANGFUSE_BASE_URL")
+@click.option("--base-url", default=None, envvar="LANGFUSE_BASE_URL")
 @click.option("--project-id", default=None)
 @click.option("--since-hours", default=24, show_default=True, help="Hours of traces to analyze")
 @click.option("--format", "output_format", default="table", type=click.Choice(["table", "json"]))
@@ -62,20 +63,20 @@ def analyze(
     output_format: str,
 ) -> None:
     """Pull traces and run all detectors. Exit 1 if any insights are found."""
-    config  = _build_config(source, public_key, secret_key, base_url, project_id)
-    since   = datetime.now(timezone.utc) - timedelta(hours=since_hours)
+    config = _build_config(source, public_key, secret_key, base_url, project_id)
+    since = datetime.now(timezone.utc) - timedelta(hours=since_hours)
     insights = _run_analysis(source, config, since)
     _output(insights, output_format)
     sys.exit(1 if insights else 0)
 
 
 @cli.command()
-@click.option("--source",     required=True, type=click.Choice(["langfuse"]))
+@click.option("--source", required=True, type=click.Choice(["langfuse"]))
 @click.option("--public-key", required=True, envvar="LANGFUSE_PUBLIC_KEY")
 @click.option("--secret-key", required=True, envvar="LANGFUSE_SECRET_KEY")
-@click.option("--base-url",   default=None,  envvar="LANGFUSE_BASE_URL")
+@click.option("--base-url", default=None, envvar="LANGFUSE_BASE_URL")
 @click.option("--project-id", default=None)
-@click.option("--interval",   default=60, show_default=True, help="Poll interval (seconds)")
+@click.option("--interval", default=60, show_default=True, help="Poll interval (seconds)")
 @click.option("--format", "output_format", default="table", type=click.Choice(["table", "json"]))
 def watch(
     source: str,
@@ -88,8 +89,9 @@ def watch(
 ) -> None:
     """Continuously poll for new traces and print insights as they arrive."""
     import time
+
     config = _build_config(source, public_key, secret_key, base_url, project_id)
-    since  = datetime.now(timezone.utc) - timedelta(hours=1)
+    since = datetime.now(timezone.utc) - timedelta(hours=1)
 
     console.print(f"[bold]Watching {source} traces every {interval}s.[/] Press Ctrl+C to stop.")
     try:
@@ -106,6 +108,7 @@ def watch(
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _build_config(
     source: str,
@@ -133,7 +136,7 @@ def _run_analysis(source: str, config: dict, since: datetime) -> list[Insight]:
             traces.setdefault(span.trace_id, []).append(span)
 
     for trace_id, spans in traces.items():
-        graph    = build_graph(spans)
+        graph = build_graph(spans)
         insights = run_detectors(graph, workspace_tier=Tier.FREE)
         all_insights.extend(insights)
 
@@ -146,10 +149,10 @@ def _output(insights: list[Insight], fmt: str) -> None:
         return
 
     table = Table(title=f"{len(insights)} insight(s) found", show_lines=True)
-    table.add_column("Severity",       style="bold", no_wrap=True)
-    table.add_column("Detector",       style="dim")
-    table.add_column("Trace ID",       style="dim", no_wrap=True)
-    table.add_column("Title",          max_width=40)
+    table.add_column("Severity", style="bold", no_wrap=True)
+    table.add_column("Detector", style="dim")
+    table.add_column("Trace ID", style="dim", no_wrap=True)
+    table.add_column("Title", max_width=40)
     table.add_column("Recommendation", max_width=60)
 
     for insight in insights:

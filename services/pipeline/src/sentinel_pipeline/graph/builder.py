@@ -11,6 +11,7 @@ correct graph construction. Key invariants:
   - Cycles are flagged, never silently lost
   - Clock-skewed child spans are corrected before the graph is returned
 """
+
 from __future__ import annotations
 
 import logging
@@ -49,7 +50,7 @@ def build_graph(spans: list[NormalizedSpan]) -> FlowGraph:
             created_at=datetime.now(timezone.utc),
         )
 
-    trace_id     = spans[0].trace_id
+    trace_id = spans[0].trace_id
     workspace_id = spans[0].workspace_id
 
     # Index by span_id for O(1) parent lookups
@@ -71,11 +72,13 @@ def build_graph(spans: list[NormalizedSpan]) -> FlowGraph:
 
         if parent is not None:
             # Always add a parent-child edge
-            edges.append(FlowEdge(
-                source_span_id=parent.span_id,
-                target_span_id=span.span_id,
-                kind=EdgeKind.PARENT_CHILD,
-            ))
+            edges.append(
+                FlowEdge(
+                    source_span_id=parent.span_id,
+                    target_span_id=span.span_id,
+                    kind=EdgeKind.PARENT_CHILD,
+                )
+            )
 
             # Agent handoff: both spans are agents with different names
             if (
@@ -85,19 +88,23 @@ def build_graph(spans: list[NormalizedSpan]) -> FlowGraph:
                 and parent.agent_name
                 and span.agent_name != parent.agent_name
             ):
-                edges.append(FlowEdge(
-                    source_span_id=parent.span_id,
-                    target_span_id=span.span_id,
-                    kind=EdgeKind.AGENT_HANDOFF,
-                ))
+                edges.append(
+                    FlowEdge(
+                        source_span_id=parent.span_id,
+                        target_span_id=span.span_id,
+                        kind=EdgeKind.AGENT_HANDOFF,
+                    )
+                )
 
             # Retry: span was a retry of its parent
             if span.retry_count > 0:
-                edges.append(FlowEdge(
-                    source_span_id=parent.span_id,
-                    target_span_id=span.span_id,
-                    kind=EdgeKind.RETRY,
-                ))
+                edges.append(
+                    FlowEdge(
+                        source_span_id=parent.span_id,
+                        target_span_id=span.span_id,
+                        kind=EdgeKind.RETRY,
+                    )
+                )
 
     # Step 3: Construct graph
     graph = FlowGraph(
@@ -135,7 +142,7 @@ def _normalize_timestamps(by_id: dict[str, NormalizedSpan]) -> None:
                 delta,
             )
             span.start_time = parent.start_time
-            span.end_time   = span.end_time + delta
+            span.end_time = span.end_time + delta
 
 
 def _infer_structural_retries(by_id: dict[str, NormalizedSpan]) -> None:
@@ -164,8 +171,7 @@ def _infer_structural_retries(by_id: dict[str, NormalizedSpan]) -> None:
 
         group.sort(key=lambda s: s.start_time)
         failed_predecessors = sum(
-            1 for s in group[:-1]
-            if s.status in (SpanStatus.ERROR, SpanStatus.TIMEOUT)
+            1 for s in group[:-1] if s.status in (SpanStatus.ERROR, SpanStatus.TIMEOUT)
         )
         if failed_predecessors == 0:
             continue
@@ -175,7 +181,9 @@ def _infer_structural_retries(by_id: dict[str, NormalizedSpan]) -> None:
             final.retry_count = failed_predecessors
             logger.debug(
                 "Inferred %d structural retries on span %s (%s)",
-                failed_predecessors, final.span_id, final.name,
+                failed_predecessors,
+                final.span_id,
+                final.name,
             )
 
 
@@ -193,8 +201,8 @@ def _detect_cycles(graph: FlowGraph) -> None:
         # nx.find_cycle returns a list of (u, v, data) tuples
         cycle_nodes = [u for u, _v, *_ in cycle]
         graph.has_cycle = True
-        graph.cycles    = [cycle_nodes]
+        graph.cycles = [cycle_nodes]
         logger.debug("Cycle detected in trace %s: %s", graph.trace_id, cycle_nodes)
     except nx.NetworkXNoCycle:
         graph.has_cycle = False
-        graph.cycles    = []
+        graph.cycles = []

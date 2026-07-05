@@ -1,4 +1,5 @@
 """Maps OpenTelemetry spans to NormalizedSpan using OTel GenAI semantic conventions."""
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -23,9 +24,9 @@ _OPERATION_TO_KIND: dict[str, SpanKind] = {
 }
 
 _OTEL_STATUS_TO_SPAN_STATUS: dict[int, SpanStatus] = {
-    0: SpanStatus.OK,    # STATUS_CODE_UNSET
-    1: SpanStatus.OK,    # STATUS_CODE_OK
-    2: SpanStatus.ERROR, # STATUS_CODE_ERROR
+    0: SpanStatus.OK,  # STATUS_CODE_UNSET
+    1: SpanStatus.OK,  # STATUS_CODE_OK
+    2: SpanStatus.ERROR,  # STATUS_CODE_ERROR
 }
 
 
@@ -37,7 +38,9 @@ def _hex(b: bytes) -> str:
     return b.hex() if b else ""
 
 
-def map_otel_span(span: OtelSpan, workspace_id: str, resource_attrs: dict[str, Any]) -> NormalizedSpan:
+def map_otel_span(
+    span: OtelSpan, workspace_id: str, resource_attrs: dict[str, Any]
+) -> NormalizedSpan:
     """Convert a single OTel span proto to NormalizedSpan."""
     attrs: dict[str, Any] = {kv.key: _extract_value(kv.value) for kv in span.attributes}
     merged = {**resource_attrs, **attrs}

@@ -1,9 +1,10 @@
 """API key authentication. Injects workspace into request via FastAPI Depends."""
+
 from __future__ import annotations
 
 import hashlib
 
-from fastapi import Depends, HTTPException, Security, status
+from fastapi import HTTPException, Security, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 

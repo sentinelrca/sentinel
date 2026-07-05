@@ -14,6 +14,7 @@ OpenInference span.kind → SpanKind:
   EMBEDDING → GENERIC
   (other)   → GENERIC
 """
+
 from __future__ import annotations
 
 import logging
@@ -27,18 +28,18 @@ from sentinel_pipeline.models.span import NormalizedSpan, SpanKind, SpanStatus
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_BASE_URL    = "https://app.phoenix.arize.com"
-_DEFAULT_PROJECT     = "default"
-_PAGE_SIZE           = 100
+_DEFAULT_BASE_URL = "https://app.phoenix.arize.com"
+_DEFAULT_PROJECT = "default"
+_PAGE_SIZE = 100
 
 _KIND_MAP: dict[str, SpanKind] = {
-    "llm":       SpanKind.LLM_CALL,
-    "chain":     SpanKind.CHAIN,
+    "llm": SpanKind.LLM_CALL,
+    "chain": SpanKind.CHAIN,
     "retriever": SpanKind.RETRIEVAL,
-    "tool":      SpanKind.TOOL_INVOKE,
-    "agent":     SpanKind.AGENT_INVOKE,
+    "tool": SpanKind.TOOL_INVOKE,
+    "agent": SpanKind.AGENT_INVOKE,
     "embedding": SpanKind.GENERIC,
-    "reranker":  SpanKind.GENERIC,
+    "reranker": SpanKind.GENERIC,
 }
 
 
@@ -78,14 +79,14 @@ class ArizePhoenixConnector(Connector):
         workspace_id: str,
     ) -> Iterator[list[NormalizedSpan]]:
         """Page through spans newer than `since` using cursor-based pagination."""
-        client        = self._client(config)
+        client = self._client(config)
         store_content = config.get("store_content", False)
-        project       = config.get("project_name") or _DEFAULT_PROJECT
+        project = config.get("project_name") or _DEFAULT_PROJECT
         cursor: str | None = None
 
         while True:
             params: dict = {
-                "limit":      _PAGE_SIZE,
+                "limit": _PAGE_SIZE,
                 "start_time": _to_phoenix_ts(since),
             }
             if cursor:
@@ -98,16 +99,12 @@ class ArizePhoenixConnector(Connector):
                 logger.error("Arize Phoenix pull failed: %s", exc)
                 raise
 
-            body  = resp.json()
+            body = resp.json()
             spans = body.get("data", [])
             if not spans:
                 break
 
-            batch = [
-                self._map_span(s, workspace_id, store_content)
-                for s in spans
-                if _trace_id(s)
-            ]
+            batch = [self._map_span(s, workspace_id, store_content) for s in spans if _trace_id(s)]
             if batch:
                 yield batch
 
@@ -124,17 +121,17 @@ class ArizePhoenixConnector(Connector):
         limit: int = 500,
     ) -> Iterator[list[NormalizedSpan]]:
         """Fetch spans within [since, until], stopping after `limit` spans."""
-        client        = self._client(config)
+        client = self._client(config)
         store_content = config.get("store_content", False)
-        project       = config.get("project_name") or _DEFAULT_PROJECT
+        project = config.get("project_name") or _DEFAULT_PROJECT
         cursor: str | None = None
         total_yielded = 0
 
         while True:
             params: dict = {
-                "limit":      _PAGE_SIZE,
+                "limit": _PAGE_SIZE,
                 "start_time": _to_phoenix_ts(since),
-                "end_time":   _to_phoenix_ts(until),
+                "end_time": _to_phoenix_ts(until),
             }
             if cursor:
                 params["cursor"] = cursor
@@ -146,16 +143,12 @@ class ArizePhoenixConnector(Connector):
                 logger.error("Arize Phoenix pull_by_window failed: %s", exc)
                 raise
 
-            body  = resp.json()
+            body = resp.json()
             spans = body.get("data", [])
             if not spans:
                 break
 
-            batch = [
-                self._map_span(s, workspace_id, store_content)
-                for s in spans
-                if _trace_id(s)
-            ]
+            batch = [self._map_span(s, workspace_id, store_content) for s in spans if _trace_id(s)]
             if batch:
                 remaining = limit - total_yielded
                 batch = batch[:remaining]
@@ -173,9 +166,9 @@ class ArizePhoenixConnector(Connector):
         workspace_id: str,
     ) -> Iterator[list[NormalizedSpan]]:
         """Fetch all spans for the given trace IDs, one trace at a time."""
-        client        = self._client(config)
+        client = self._client(config)
         store_content = config.get("store_content", False)
-        project       = config.get("project_name") or _DEFAULT_PROJECT
+        project = config.get("project_name") or _DEFAULT_PROJECT
 
         for trace_id in trace_ids:
             cursor: str | None = None
@@ -184,7 +177,7 @@ class ArizePhoenixConnector(Connector):
             while True:
                 params: dict = {
                     "trace_id": trace_id,
-                    "limit":    _PAGE_SIZE,
+                    "limit": _PAGE_SIZE,
                 }
                 if cursor:
                     params["cursor"] = cursor
@@ -193,20 +186,16 @@ class ArizePhoenixConnector(Connector):
                     resp = client.get(f"/v1/projects/{project}/spans", params=params)
                     resp.raise_for_status()
                 except httpx.HTTPError as exc:
-                    logger.error(
-                        "Arize Phoenix pull_by_ids failed for trace %s: %s", trace_id, exc
-                    )
+                    logger.error("Arize Phoenix pull_by_ids failed for trace %s: %s", trace_id, exc)
                     raise
 
-                body  = resp.json()
+                body = resp.json()
                 spans = body.get("data", [])
                 if not spans:
                     break
 
                 trace_batch.extend(
-                    self._map_span(s, workspace_id, store_content)
-                    for s in spans
-                    if _trace_id(s)
+                    self._map_span(s, workspace_id, store_content) for s in spans if _trace_id(s)
                 )
 
                 cursor = body.get("next_cursor") or None
@@ -237,10 +226,10 @@ class ArizePhoenixConnector(Connector):
         workspace_id: str,
         store_content: bool = False,
     ) -> NormalizedSpan:
-        ctx      = span.get("context") or {}
-        span_id  = ctx.get("span_id") or span.get("id") or ""
+        ctx = span.get("context") or {}
+        span_id = ctx.get("span_id") or span.get("id") or ""
         trace_id = ctx.get("trace_id") or ""
-        attrs    = span.get("attributes") or {}
+        attrs = span.get("attributes") or {}
 
         # SpanKind: prefer OpenInference attribute; fall back to top-level field
         raw_kind = (
@@ -252,29 +241,28 @@ class ArizePhoenixConnector(Connector):
         kind = _KIND_MAP.get(raw_kind, SpanKind.GENERIC)
 
         status_raw = (span.get("statusCode") or span.get("status_code") or "OK").upper()
-        status     = SpanStatus.ERROR if status_raw == "ERROR" else SpanStatus.OK
-        error_msg  = span.get("statusMessage") or span.get("status_message") or None
+        status = SpanStatus.ERROR if status_raw == "ERROR" else SpanStatus.OK
+        error_msg = span.get("statusMessage") or span.get("status_message") or None
 
-        start_time = (
-            _parse_ts(span.get("startTime") or span.get("start_time"))
-            or datetime.now(timezone.utc)
+        start_time = _parse_ts(span.get("startTime") or span.get("start_time")) or datetime.now(
+            timezone.utc
         )
         end_time = _parse_ts(span.get("endTime") or span.get("end_time")) or start_time
 
-        input_tokens  = _int_or_none(attrs.get("llm.token_count.prompt"))
+        input_tokens = _int_or_none(attrs.get("llm.token_count.prompt"))
         output_tokens = _int_or_none(attrs.get("llm.token_count.completion"))
-        model         = attrs.get("llm.model_name") or None
+        model = attrs.get("llm.model_name") or None
 
-        metadata   = attrs.get("metadata") or {}
+        metadata = attrs.get("metadata") or {}
         agent_name = metadata.get("agent_name") or metadata.get("agentName") or None
 
         span_attrs: dict = {"arize.span_kind": raw_kind}
         if store_content:
             if input_val := attrs.get("input.value"):
-                span_attrs["arize.input"]  = input_val
+                span_attrs["arize.input"] = input_val
                 span_attrs["gen_ai.input"] = input_val
             if output_val := attrs.get("output.value"):
-                span_attrs["arize.output"]  = output_val
+                span_attrs["arize.output"] = output_val
                 span_attrs["gen_ai.output"] = output_val
 
         return NormalizedSpan(
@@ -313,7 +301,7 @@ def _parse_ts(value: str | None) -> datetime | None:
 
 
 def _int_or_none(value: object) -> int | None:
-    if value is None:
+    if not isinstance(value, (int, float, str)):
         return None
     try:
         return int(value)

@@ -10,8 +10,8 @@ from sentinel_pipeline.signals.extractor import Signals
 from .base import Detector
 
 # --- Tunable thresholds (see M3+ for per-workspace config) ---
-_MIN_REPEATED_CALLS   = 2       # need at least 2 calls with similar input to flag
-_SIMILARITY_TOLERANCE = 0.05    # two calls are "same input" if within ±5% token count
+_MIN_REPEATED_CALLS = 2  # need at least 2 calls with similar input to flag
+_SIMILARITY_TOLERANCE = 0.05  # two calls are "same input" if within ±5% token count
 
 # Minimum input tokens before caching is worthwhile, per provider.
 # Sources: Anthropic docs (min 1024), OpenAI docs (min 1024 on GPT-4o+),
@@ -95,15 +95,16 @@ class ContextCacheOpportunityDetector(Detector):
       Google     — explicit Context Caching API (Gemini 1.5+)
     """
 
-    id       = "context_cache_opportunity"
-    name     = "Context Cache Opportunity"
+    id = "context_cache_opportunity"
+    name = "Context Cache Opportunity"
     severity = Severity.WARNING
-    tier     = Tier.FREE
+    tier = Tier.FREE
 
     def evaluate(self, graph: FlowGraph, signals: Signals) -> list[Insight] | None:
         # Collect LLM spans with input_tokens available
         llm_spans = [
-            s for s in graph.nodes.values()
+            s
+            for s in graph.nodes.values()
             if s.kind == SpanKind.LLM_CALL and s.input_tokens is not None
         ]
         if len(llm_spans) < _MIN_REPEATED_CALLS:
@@ -123,7 +124,7 @@ class ContextCacheOpportunityDetector(Detector):
             config = _provider_config(model)
 
             # Sort by input_tokens to make clustering O(n)
-            spans.sort(key=lambda s: s.input_tokens)
+            spans.sort(key=lambda s: s.input_tokens or 0)
 
             # Sliding-window cluster: group spans whose input_tokens are within
             # ±5% of the cluster anchor (first span). The anchor is fixed for the
@@ -131,16 +132,16 @@ class ContextCacheOpportunityDetector(Detector):
             # most 5% growth from the first call before a new cluster starts.
             clusters: list[list[NormalizedSpan]] = []
             current: list[NormalizedSpan] = [spans[0]]
-            anchor_tokens: int = spans[0].input_tokens
+            anchor_tokens: int = spans[0].input_tokens or 0
 
             for span in spans[1:]:
-                if span.input_tokens <= anchor_tokens * (1 + _SIMILARITY_TOLERANCE):
+                if (span.input_tokens or 0) <= anchor_tokens * (1 + _SIMILARITY_TOLERANCE):
                     current.append(span)
                 else:
                     if len(current) >= _MIN_REPEATED_CALLS:
                         clusters.append(current)
                     current = [span]
-                    anchor_tokens = span.input_tokens
+                    anchor_tokens = span.input_tokens or 0
 
             if len(current) >= _MIN_REPEATED_CALLS:
                 clusters.append(current)
@@ -148,34 +149,36 @@ class ContextCacheOpportunityDetector(Detector):
             for cluster in clusters:
                 # Use median token count as representative — more accurate than
                 # cluster[0] (minimum) which understates wasted tokens.
-                representative_tokens = cluster[len(cluster) // 2].input_tokens
+                representative_tokens = cluster[len(cluster) // 2].input_tokens or 0
                 if representative_tokens < config.min_tokens:
                     continue
 
-                call_count    = len(cluster)
+                call_count = len(cluster)
                 wasted_tokens = representative_tokens * (call_count - 1)
-                affected_ids  = [s.span_id for s in cluster]
+                affected_ids = [s.span_id for s in cluster]
 
-                insights.append(Insight(
-                    workspace_id=graph.workspace_id,
-                    trace_id=graph.trace_id,
-                    detector_id=self.id,
-                    severity=self.severity,
-                    title=f"Repeated large context sent to {model} — cache it",
-                    detail=(
-                        f"{call_count} calls to {model} each sent ~{representative_tokens:,} "
-                        f"input tokens. Sending the same large context on every call "
-                        f"re-processes approximately {wasted_tokens:,} tokens that could "
-                        f"be served from cache after the first call."
-                    ),
-                    recommendation=config.recommendation,
-                    affected_span_ids=affected_ids,
-                    evidence={
-                        "model":                 model,
-                        "repeated_calls":        call_count,
-                        "input_tokens_per_call": representative_tokens,
-                        "wasted_tokens":         wasted_tokens,
-                    },
-                ))
+                insights.append(
+                    Insight(
+                        workspace_id=graph.workspace_id,
+                        trace_id=graph.trace_id,
+                        detector_id=self.id,
+                        severity=self.severity,
+                        title=f"Repeated large context sent to {model} — cache it",
+                        detail=(
+                            f"{call_count} calls to {model} each sent ~{representative_tokens:,} "
+                            f"input tokens. Sending the same large context on every call "
+                            f"re-processes approximately {wasted_tokens:,} tokens that could "
+                            f"be served from cache after the first call."
+                        ),
+                        recommendation=config.recommendation,
+                        affected_span_ids=affected_ids,
+                        evidence={
+                            "model": model,
+                            "repeated_calls": call_count,
+                            "input_tokens_per_call": representative_tokens,
+                            "wasted_tokens": wasted_tokens,
+                        },
+                    )
+                )
 
         return insights or None

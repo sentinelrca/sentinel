@@ -11,6 +11,7 @@ Langfuse observation types → SpanKind:
   span              → CHAIN
   (anything else)   → GENERIC
 """
+
 from __future__ import annotations
 
 import base64
@@ -26,7 +27,7 @@ from sentinel_pipeline.models.span import NormalizedSpan, SpanKind, SpanStatus
 logger = logging.getLogger(__name__)
 
 _DEFAULT_BASE_URL = "https://cloud.langfuse.com"
-_PAGE_SIZE        = 100
+_PAGE_SIZE = 100
 
 
 def _to_langfuse_ts(dt: datetime) -> str:
@@ -34,13 +35,14 @@ def _to_langfuse_ts(dt: datetime) -> str:
     utc = dt.astimezone(timezone.utc)
     return utc.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
+
 _KIND_MAP: dict[str, SpanKind] = {
-    "llm":        SpanKind.LLM_CALL,
+    "llm": SpanKind.LLM_CALL,
     "generation": SpanKind.LLM_CALL,
-    "tool":       SpanKind.TOOL_INVOKE,
-    "retrieval":  SpanKind.RETRIEVAL,
-    "span":       SpanKind.CHAIN,   # Langfuse v2 type name
-    "chain":      SpanKind.CHAIN,   # Langfuse v4 type name
+    "tool": SpanKind.TOOL_INVOKE,
+    "retrieval": SpanKind.RETRIEVAL,
+    "span": SpanKind.CHAIN,  # Langfuse v2 type name
+    "chain": SpanKind.CHAIN,  # Langfuse v4 type name
 }
 
 
@@ -66,10 +68,10 @@ class LangfuseConnector(Connector):
         Page through Langfuse observations newer than `since` and yield
         batches of NormalizedSpan objects.
         """
-        client        = self._client(config)
+        client = self._client(config)
         store_content = config.get("store_content", False)
-        page          = 1
-        since_iso     = _to_langfuse_ts(since)
+        page = 1
+        since_iso = _to_langfuse_ts(since)
 
         while True:
             try:
@@ -80,12 +82,16 @@ class LangfuseConnector(Connector):
                 if resp.status_code == 422:
                     logger.warning(
                         "Langfuse observations API returned 422 on page %d — "
-                        "stopping pagination: %s", page, resp.text[:200],
+                        "stopping pagination: %s",
+                        page,
+                        resp.text[:200],
                     )
                     break
                 resp.raise_for_status()
             except httpx.HTTPStatusError as exc:
-                logger.error("Langfuse pull HTTP %d on page %d: %s", exc.response.status_code, page, exc)
+                logger.error(
+                    "Langfuse pull HTTP %d on page %d: %s", exc.response.status_code, page, exc
+                )
                 raise
             except httpx.HTTPError as exc:
                 logger.error("Langfuse pull failed on page %d: %s", page, exc)
@@ -118,9 +124,9 @@ class LangfuseConnector(Connector):
         limit: int = 500,
     ) -> Iterator[list[NormalizedSpan]]:
         """Fetch observations within [since, until], stopping after `limit` spans."""
-        client        = self._client(config)
+        client = self._client(config)
         store_content = config.get("store_content", False)
-        page          = 1
+        page = 1
         total_yielded = 0
 
         while True:
@@ -134,12 +140,18 @@ class LangfuseConnector(Connector):
                     logger.warning(
                         "Langfuse observations API returned 422 on page %d — "
                         "stopping pagination (partial results preserved): %s",
-                        page, resp.text[:200],
+                        page,
+                        resp.text[:200],
                     )
                     break
                 resp.raise_for_status()
             except httpx.HTTPStatusError as exc:
-                logger.error("Langfuse pull_by_window HTTP %d on page %d: %s", exc.response.status_code, page, exc)
+                logger.error(
+                    "Langfuse pull_by_window HTTP %d on page %d: %s",
+                    exc.response.status_code,
+                    page,
+                    exc,
+                )
                 raise
             except httpx.HTTPError as exc:
                 logger.error("Langfuse pull_by_window failed on page %d: %s", page, exc)
@@ -171,7 +183,7 @@ class LangfuseConnector(Connector):
         workspace_id: str,
     ) -> Iterator[list[NormalizedSpan]]:
         """Fetch all observations for the given trace IDs, one trace at a time."""
-        client        = self._client(config)
+        client = self._client(config)
         store_content = config.get("store_content", False)
 
         for trace_id in trace_ids:
@@ -184,13 +196,18 @@ class LangfuseConnector(Connector):
                         "/api/public/observations",
                         params={
                             "traceId": trace_id,
-                            "page":    page,
-                            "limit":   _PAGE_SIZE,
+                            "page": page,
+                            "limit": _PAGE_SIZE,
                         },
                     )
                     resp.raise_for_status()
                 except httpx.HTTPStatusError as exc:
-                    logger.error("Langfuse pull_by_ids HTTP %d for trace %s: %s", exc.response.status_code, trace_id, exc)
+                    logger.error(
+                        "Langfuse pull_by_ids HTTP %d for trace %s: %s",
+                        exc.response.status_code,
+                        trace_id,
+                        exc,
+                    )
                     raise
                 except httpx.HTTPError as exc:
                     logger.error("Langfuse pull_by_ids failed for trace %s: %s", trace_id, exc)
@@ -217,19 +234,21 @@ class LangfuseConnector(Connector):
     # ------------------------------------------------------------------
 
     def _client(self, config: dict) -> httpx.Client:
-        base_url   = (config.get("host") or config.get("base_url") or _DEFAULT_BASE_URL).rstrip("/")
+        base_url = (config.get("host") or config.get("base_url") or _DEFAULT_BASE_URL).rstrip("/")
         public_key = config["public_key"]
         secret_key = config["secret_key"]
-        token      = base64.b64encode(f"{public_key}:{secret_key}".encode()).decode()
+        token = base64.b64encode(f"{public_key}:{secret_key}".encode()).decode()
         return httpx.Client(
             base_url=base_url,
             headers={"Authorization": f"Basic {token}"},
             timeout=httpx.Timeout(60.0, connect=10.0),
         )
 
-    def _map_observation(self, obs: dict, workspace_id: str, store_content: bool = False) -> NormalizedSpan:
+    def _map_observation(
+        self, obs: dict, workspace_id: str, store_content: bool = False
+    ) -> NormalizedSpan:
         obs_type = (obs.get("type") or "span").lower()
-        kind     = _KIND_MAP.get(obs_type, SpanKind.GENERIC)
+        kind = _KIND_MAP.get(obs_type, SpanKind.GENERIC)
 
         status = SpanStatus.OK
         if obs.get("level") == "ERROR":
@@ -237,27 +256,27 @@ class LangfuseConnector(Connector):
 
         # Langfuse timestamps are ISO 8601 strings
         start_time = _parse_ts(obs.get("startTime")) or datetime.now(timezone.utc)
-        end_time   = _parse_ts(obs.get("endTime")) or start_time
+        end_time = _parse_ts(obs.get("endTime")) or start_time
 
-        usage         = obs.get("usage") or {}
-        input_tokens  = usage.get("input")  or usage.get("promptTokens")
+        usage = obs.get("usage") or {}
+        input_tokens = usage.get("input") or usage.get("promptTokens")
         output_tokens = usage.get("output") or usage.get("completionTokens")
 
         # Agent name: Langfuse doesn't have a native field; check metadata
-        metadata   = obs.get("metadata") or {}
+        metadata = obs.get("metadata") or {}
         agent_name = metadata.get("agent_name") or metadata.get("agentName")
 
         attributes: dict = {
-            "langfuse.type":    obs_type,
+            "langfuse.type": obs_type,
             "langfuse.project": obs.get("projectId", ""),
         }
         if store_content:
             if isinstance(obs.get("input"), (dict, str)):
-                attributes["langfuse.input"]  = obs["input"]
-                attributes["gen_ai.input"]    = obs["input"]
+                attributes["langfuse.input"] = obs["input"]
+                attributes["gen_ai.input"] = obs["input"]
             if isinstance(obs.get("output"), (dict, str)):
                 attributes["langfuse.output"] = obs["output"]
-                attributes["gen_ai.output"]   = obs["output"]
+                attributes["gen_ai.output"] = obs["output"]
 
         return NormalizedSpan(
             span_id=obs["id"],

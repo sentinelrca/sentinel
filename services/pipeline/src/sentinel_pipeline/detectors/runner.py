@@ -38,11 +38,12 @@ def run_detectors(
             if result:
                 if cfg and cfg.get("action") == "OVERRIDE_SEVERITY" and cfg.get("severity"):
                     result = [
-                        i.model_copy(update={"severity": Severity(cfg["severity"])})
-                        for i in result
+                        i.model_copy(update={"severity": Severity(cfg["severity"])}) for i in result
                     ]
                 all_insights.extend(result)
         except Exception:
-            logger.exception("Detector %s raised unexpectedly on trace %s", detector.id, graph.trace_id)
+            logger.exception(
+                "Detector %s raised unexpectedly on trace %s", detector.id, graph.trace_id
+            )
 
     return all_insights

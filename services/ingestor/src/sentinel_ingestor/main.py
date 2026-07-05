@@ -1,4 +1,5 @@
 """OTLP/HTTP ingestion endpoint. Accepts protobuf or JSON traces, queues processing."""
+
 from __future__ import annotations
 
 import asyncio
@@ -23,6 +24,7 @@ _CELERY_BROKER = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 async def lifespan(app: FastAPI):
     # Import here to avoid circular deps at module load time
     from celery import Celery
+
     app.state.celery = Celery("sentinel_worker", broker=_CELERY_BROKER)
     yield
 
@@ -60,6 +62,7 @@ async def ingest_traces(request: Request) -> Response:
         export_req.ParseFromString(body)
     elif "application/json" in content_type:
         from google.protobuf import json_format
+
         export_req = json_format.Parse(body, ExportTraceServiceRequest())
     else:
         raise HTTPException(status_code=415, detail="Unsupported content type")
@@ -67,8 +70,7 @@ async def ingest_traces(request: Request) -> Response:
     spans = []
     for resource_spans in export_req.resource_spans:
         resource_attrs = {
-            kv.key: kv.value.string_value
-            for kv in resource_spans.resource.attributes
+            kv.key: kv.value.string_value for kv in resource_spans.resource.attributes
         }
         for scope_spans in resource_spans.scope_spans:
             for otel_span in scope_spans.spans:
@@ -77,6 +79,7 @@ async def ingest_traces(request: Request) -> Response:
 
     if spans:
         from sentinel_pipeline.db.clickhouse import insert_spans
+
         await asyncio.to_thread(insert_spans, spans)
 
     trace_ids = {span.trace_id for span in spans}

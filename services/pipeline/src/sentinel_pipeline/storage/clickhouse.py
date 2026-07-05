@@ -3,6 +3,7 @@
 Used for self-hosted deployments (Docker Compose, on-prem).
 Connects via CLICKHOUSE_URL env var (default: clickhouse://localhost:9000/sentinel).
 """
+
 from __future__ import annotations
 
 import json
@@ -67,10 +68,22 @@ SETTINGS index_granularity = 8192;
 """
 
 _SPAN_COLUMNS = [
-    "trace_id", "span_id", "parent_span_id", "workspace_id",
-    "name", "kind", "status", "start_time", "end_time",
-    "model", "agent_name", "input_tokens", "output_tokens",
-    "retry_count", "error_message", "attributes_json",
+    "trace_id",
+    "span_id",
+    "parent_span_id",
+    "workspace_id",
+    "name",
+    "kind",
+    "status",
+    "start_time",
+    "end_time",
+    "model",
+    "agent_name",
+    "input_tokens",
+    "output_tokens",
+    "retry_count",
+    "error_message",
+    "attributes_json",
 ]
 
 _PROJECT_SPAN_COLUMNS = ["project_id"] + _SPAN_COLUMNS
@@ -88,10 +101,21 @@ def _get_client() -> Client:
 
 def _span_row(s: NormalizedSpan) -> tuple:
     return (
-        s.trace_id, s.span_id, s.parent_span_id or "", s.workspace_id,
-        s.name, s.kind.value, s.status.value, s.start_time, s.end_time,
-        s.model or "", s.agent_name or "", s.input_tokens or 0,
-        s.output_tokens or 0, s.retry_count, s.error_message or "",
+        s.trace_id,
+        s.span_id,
+        s.parent_span_id or "",
+        s.workspace_id,
+        s.name,
+        s.kind.value,
+        s.status.value,
+        s.start_time,
+        s.end_time,
+        s.model or "",
+        s.agent_name or "",
+        s.input_tokens or 0,
+        s.output_tokens or 0,
+        s.retry_count,
+        s.error_message or "",
         json.dumps(s.attributes),
     )
 
@@ -142,9 +166,7 @@ class ClickHouseSpanStore:
             logger.exception("Failed to count distinct traces for workspace %s", workspace_id)
             return 0
 
-    def fetch_trace_stats_batch(
-        self, trace_ids: list[str], workspace_id: str
-    ) -> dict[str, dict]:
+    def fetch_trace_stats_batch(self, trace_ids: list[str], workspace_id: str) -> dict[str, dict]:
         if not trace_ids:
             return {}
         try:
@@ -193,11 +215,12 @@ class ClickHouseSpanStore:
     def delete_spans_older_than(self, workspace_id: str, cutoff_iso: str) -> None:
         try:
             _get_client().execute(
-                "ALTER TABLE spans DELETE "
-                "WHERE workspace_id = %(ws)s AND start_time < %(cutoff)s",
+                "ALTER TABLE spans DELETE WHERE workspace_id = %(ws)s AND start_time < %(cutoff)s",
                 {"ws": workspace_id, "cutoff": cutoff_iso},
             )
-            logger.info("Queued retention cleanup for workspace %s (cutoff %s)", workspace_id, cutoff_iso)
+            logger.info(
+                "Queued retention cleanup for workspace %s (cutoff %s)", workspace_id, cutoff_iso
+            )
         except Exception:
             logger.exception("Failed to delete old spans for workspace %s", workspace_id)
             raise
@@ -211,7 +234,9 @@ class ClickHouseSpanStore:
             rows = [(project_id, *_span_row(s)) for s in spans]
             _get_client().execute("INSERT INTO project_spans VALUES", rows)
         except Exception:
-            logger.exception("Failed to insert %d project spans for project %s", len(spans), project_id)
+            logger.exception(
+                "Failed to insert %d project spans for project %s", len(spans), project_id
+            )
             raise
 
     def fetch_project_spans(self, project_id: str, workspace_id: str) -> list[dict]:
@@ -245,7 +270,9 @@ class ClickHouseSpanStore:
             )
             return [dict(zip(_PROJECT_SPAN_COLUMNS, row)) for row in rows]
         except Exception:
-            logger.exception("Failed to fetch project trace spans for project %s trace %s", project_id, trace_id)
+            logger.exception(
+                "Failed to fetch project trace spans for project %s trace %s", project_id, trace_id
+            )
             return []
 
     def fetch_project_spans_stats_batch(

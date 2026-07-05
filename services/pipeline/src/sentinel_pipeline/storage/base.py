@@ -7,6 +7,7 @@ Any class that implements these methods is a valid SpanStore backend:
 Call sites import only from this protocol, never from a specific backend.
 The backend is selected at startup via SENTINEL_STORAGE_BACKEND env var.
 """
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -40,9 +41,7 @@ class SpanStore(Protocol):
         """Count distinct trace_ids for a workspace."""
         ...
 
-    def fetch_trace_stats_batch(
-        self, trace_ids: list[str], workspace_id: str
-    ) -> dict[str, dict]:
+    def fetch_trace_stats_batch(self, trace_ids: list[str], workspace_id: str) -> dict[str, dict]:
         """Return {trace_id: {span_count, llm_calls, total_ms}} for a batch of traces."""
         ...
 
@@ -62,15 +61,11 @@ class SpanStore(Protocol):
 
     # ── Project spans (offline analysis path) ─────────────────────────────
 
-    def insert_project_spans(
-        self, project_id: str, spans: list[NormalizedSpan]
-    ) -> None:
+    def insert_project_spans(self, project_id: str, spans: list[NormalizedSpan]) -> None:
         """Bulk insert spans into a project snapshot."""
         ...
 
-    def fetch_project_spans(
-        self, project_id: str, workspace_id: str
-    ) -> list[dict]:
+    def fetch_project_spans(self, project_id: str, workspace_id: str) -> list[dict]:
         """Fetch all spans for a project snapshot."""
         ...
 

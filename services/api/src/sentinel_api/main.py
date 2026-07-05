@@ -1,4 +1,5 @@
 """SentinelAI REST API server."""
+
 from __future__ import annotations
 
 import os
@@ -28,10 +29,10 @@ app.add_middleware(
 )
 
 app.include_router(health_router)
-app.include_router(insights_router,    prefix="/v1")
-app.include_router(flows_router,       prefix="/v1")
-app.include_router(projects_router,    prefix="/v1")
+app.include_router(insights_router, prefix="/v1")
+app.include_router(flows_router, prefix="/v1")
+app.include_router(projects_router, prefix="/v1")
 app.include_router(detector_configs_router, prefix="/v1")
-app.include_router(sources_router,     prefix="/v1")
-app.include_router(traces_router,      prefix="/v1")
-app.include_router(workspaces_router,  prefix="/v1")
+app.include_router(sources_router, prefix="/v1")
+app.include_router(traces_router, prefix="/v1")
+app.include_router(workspaces_router, prefix="/v1")

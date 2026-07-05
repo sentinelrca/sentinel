@@ -1,4 +1,5 @@
 """Traces router — trace-centric insight feed."""
+
 from __future__ import annotations
 
 import asyncio
@@ -8,7 +9,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 
 from sentinel_pipeline.db.clickhouse import count_distinct_traces, fetch_trace_stats_batch
-from sentinel_pipeline.db.postgres import InsightRow, ProjectRow, SourceRow, WorkspaceRow, get_session
+from sentinel_pipeline.db.postgres import (
+    InsightRow,
+    ProjectRow,
+    SourceRow,
+    WorkspaceRow,
+    get_session,
+)
 
 from ..middleware.auth import get_workspace
 
@@ -19,7 +26,7 @@ _SEVERITY_ORDER = {"critical": 4, "high": 3, "warning": 2, "info": 1}
 
 @router.get("")
 async def list_traces(
-    limit:  int = Query(50, le=200),
+    limit: int = Query(50, le=200),
     offset: int = Query(0, ge=0),
     workspace: WorkspaceRow = Depends(get_workspace),
 ) -> dict[str, Any]:
@@ -27,7 +34,7 @@ async def list_traces(
         _open_filter = (
             InsightRow.workspace_id == workspace.id,
             InsightRow.status == "open",
-            InsightRow.project_id == None,
+            InsightRow.project_id.is_(None),
         )
 
         count_result = await session.execute(
@@ -59,9 +66,7 @@ async def list_traces(
         issues_by_severity = {row.severity: row.cnt for row in severity_result.all()}
 
         sync_result = await session.execute(
-            select(func.max(SourceRow.last_synced_at)).where(
-                SourceRow.workspace_id == workspace.id
-            )
+            select(func.max(SourceRow.last_synced_at)).where(SourceRow.workspace_id == workspace.id)
         )
         last_synced_at = sync_result.scalar_one()
 
@@ -76,16 +81,20 @@ async def list_traces(
         severities = g.severities or []
         worst = max(severities, key=lambda s: _SEVERITY_ORDER.get(s, 0)) if severities else "info"
         span_stats = stats.get(g.trace_id, {"span_count": 0, "llm_calls": 0, "total_ms": 0})
-        items.append({
-            "trace_id": g.trace_id,
-            "worst_severity": worst,
-            "insight_count": g.insight_count,
-            "detector_ids": list(dict.fromkeys(g.detector_ids)),  # dedup, preserve order
-            "latest_insight_at": g.latest_insight_at.isoformat() if g.latest_insight_at else None,
-            "span_count": span_stats["span_count"],
-            "llm_calls": span_stats["llm_calls"],
-            "total_ms": span_stats["total_ms"],
-        })
+        items.append(
+            {
+                "trace_id": g.trace_id,
+                "worst_severity": worst,
+                "insight_count": g.insight_count,
+                "detector_ids": list(dict.fromkeys(g.detector_ids)),  # dedup, preserve order
+                "latest_insight_at": g.latest_insight_at.isoformat()
+                if g.latest_insight_at
+                else None,
+                "span_count": span_stats["span_count"],
+                "llm_calls": span_stats["llm_calls"],
+                "total_ms": span_stats["total_ms"],
+            }
+        )
 
     return {
         "items": items,
@@ -121,11 +130,9 @@ async def get_trace_insights(
                 raise HTTPException(status_code=404, detail="Project not found")
             filters.append(InsightRow.project_id == project_id)
         else:
-            filters.append(InsightRow.project_id == None)
+            filters.append(InsightRow.project_id.is_(None))
         rows_result = await session.execute(
-            select(InsightRow)
-            .where(*filters)
-            .order_by(InsightRow.created_at.desc())
+            select(InsightRow).where(*filters).order_by(InsightRow.created_at.desc())
         )
         rows = rows_result.scalars().all()
 

@@ -1,4 +1,5 @@
 """Sources router — manage observability source connections."""
+
 from __future__ import annotations
 
 import asyncio
@@ -25,7 +26,7 @@ _celery = Celery(broker=_REDIS_URL, backend=_REDIS_URL)
 
 
 class SourceCreate(BaseModel):
-    kind:        str
+    kind: str
     config_json: dict[str, Any]
 
 
@@ -101,9 +102,7 @@ async def delete_source(
         row = result.scalar_one_or_none()
         if row is None:
             raise HTTPException(status_code=404, detail="Source not found")
-        await session.execute(
-            delete(SourceRow).where(SourceRow.id == source_id)
-        )
+        await session.execute(delete(SourceRow).where(SourceRow.id == source_id))
 
 
 @router.post("/{source_id}/sync", status_code=202)
@@ -132,8 +131,17 @@ async def sync_source_endpoint(
 
 def _row_to_dict(r: SourceRow) -> dict[str, Any]:
     config = dict(decrypt_config(r.config_json or {}))
-    for key in ("secret_key", "api_key", "token", "password",
-                "access_token", "bearer", "auth_token", "private_key", "client_secret"):
+    for key in (
+        "secret_key",
+        "api_key",
+        "token",
+        "password",
+        "access_token",
+        "bearer",
+        "auth_token",
+        "private_key",
+        "client_secret",
+    ):
         if key in config:
             config[key] = "***"
     return {

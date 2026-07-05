@@ -12,11 +12,19 @@ dependencies = [
 dev = [
     "pytest>=8.2",
     "ruff>=0.4",
+    "mypy>=1.10",
 ]
+
+[tool.uv.sources]
+sentinel-pipeline = { path = "../../services/pipeline", editable = true }
 
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
 
 [build-system]
 requires = ["hatchling"]

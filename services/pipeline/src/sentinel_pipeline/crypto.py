@@ -10,6 +10,7 @@ unchanged so the migration is backward-compatible.
 Requires SENTINEL_SECRET_KEY env var: a URL-safe base64-encoded 32-byte key.
 Generate one with:  python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 """
+
 from __future__ import annotations
 
 import json
@@ -30,7 +31,7 @@ def _get_fernet() -> Fernet:
         if not key:
             raise RuntimeError(
                 f"{_KEY_ENV} environment variable is not set. "
-                "Generate a key with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
+                'Generate a key with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"'
             )
         _fernet = Fernet(key.encode())
     return _fernet
