@@ -9,7 +9,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"/></a>
-  <img src="https://img.shields.io/badge/tests-340%20passing-brightgreen.svg" alt="Tests"/>
+  <img src="https://img.shields.io/badge/tests-373%20passing-brightgreen.svg" alt="Tests"/>
   <a href="https://github.com/sentinelrca/sentinel/discussions"><img src="https://img.shields.io/badge/discussions-GitHub-blue?logo=github" alt="Discussions"/></a>
 </p>
 
@@ -23,7 +23,7 @@ $ sentinel analyze --source langsmith --api-key lsv2_pt_...
   agent_loop                HIGH      trace-abc123    PlannerAgent invoked 4×
   sequential_tools          WARNING   trace-def456    search_web + query_db could save 2.1s
   context_cache_opportunity WARNING   trace-ghi789    Input tokens grew 3200→9800 over 6 calls
-  missing_session_memory    WARNING   trace-jkl012    7 turns, tokens +340% — no memory tool detected
+  token_cost_runaway        HIGH      trace-jkl012    62k tokens in one trace — 24% above threshold
 ```
 
 ---
@@ -72,7 +72,6 @@ uv run sentinel analyze --source langfuse  --public-key pk-lf-... --secret-key s
 | `latency_spike` | One span consuming >50% of total trace time | WARNING |
 | `sequential_tools` | Tool calls that could run in parallel | WARNING |
 | `context_cache_opportunity` | Input tokens growing unbounded across LLM calls | WARNING |
-| `missing_session_memory` | Token growth across turns with no memory tool calls | WARNING |
 
 All detectors run on trace structure only — **no prompt or response content is ever stored by default**.
 
