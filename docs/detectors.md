@@ -1,6 +1,6 @@
 # Detector Reference
 
-SentinelRCA ships 8 open-source detectors. All run on trace structure — no prompt or response content is ever read unless you explicitly opt in with `store_content=True`.
+SentinelRCA ships 8 open-source detectors and additional Pro/Enterprise detectors via `sentinel-engine`. All run on trace structure — no prompt or response content is ever read unless you explicitly opt in with `store_content=True`.
 
 Each detector entry covers:
 - **What it detects** — the exact condition
@@ -374,6 +374,21 @@ A single runaway trace can cost $5–50+ at typical API pricing. Without guardra
 - **Use smaller models for intermediate steps** — reserve large models for final synthesis.
 - **Enable prompt caching** — cuts input token costs by 60–90% for repeated system prompts.
 - **Chunk large inputs** — split large documents into smaller chunks and process incrementally.
+
+---
+
+---
+
+## Pro / Enterprise Detectors
+
+The following detectors are available in `sentinel-engine` (Pro and Enterprise tiers).
+They install alongside the OSS core and register automatically.
+
+| Detector | Severity | What it catches |
+|---|---|---|
+| `cascading_failure_propagation` | CRITICAL / HIGH | Single failure propagating through call tree; isolates root cause from cascade victims |
+
+Full reference: [sentinel-engine/docs/detectors-pro.md](https://github.com/sentinelrca/sentinel-engine/blob/main/docs/detectors-pro.md)
 
 ---
 
