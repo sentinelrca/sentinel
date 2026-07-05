@@ -951,6 +951,7 @@ dependencies = [
     { name = "fastapi" },
     { name = "pydantic" },
     { name = "python-dotenv" },
+    { name = "sentinel-connectors-arize" },
     { name = "sentinel-connectors-base" },
     { name = "sentinel-connectors-langfuse" },
     { name = "sentinel-connectors-langsmith" },
@@ -967,11 +968,13 @@ requires-dist = [
     { name = "clickhouse-driver", specifier = ">=0.2" },
     { name = "fastapi", specifier = ">=0.111" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27" },
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.10" },
     { name = "pydantic", specifier = ">=2.7" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.2" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23" },
     { name = "python-dotenv", specifier = ">=1.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.4" },
+    { name = "sentinel-connectors-arize", editable = "../connectors/arize" },
     { name = "sentinel-connectors-base", editable = "../connectors/_base" },
     { name = "sentinel-connectors-langfuse", editable = "../connectors/langfuse" },
     { name = "sentinel-connectors-langsmith", editable = "../connectors/langsmith" },
@@ -993,10 +996,11 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "httpx", specifier = ">=0.27" },
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.10" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.2" },
     { name = "respx", marker = "extra == 'dev'", specifier = ">=0.21" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.4" },
-    { name = "sentinel-connectors-base" },
+    { name = "sentinel-connectors-base", editable = "../connectors/_base" },
 ]
 provides-extras = ["dev"]
 
@@ -1011,10 +1015,11 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.10" },
     { name = "pydantic", specifier = ">=2.7" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.2" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.4" },
-    { name = "sentinel-pipeline" },
+    { name = "sentinel-pipeline", editable = "../services/pipeline" },
 ]
 provides-extras = ["dev"]
 
@@ -1031,12 +1036,13 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "httpx", specifier = ">=0.27" },
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.10" },
     { name = "pydantic", specifier = ">=2.7" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.2" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23" },
     { name = "respx", marker = "extra == 'dev'", specifier = ">=0.21" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.4" },
-    { name = "sentinel-connectors-base" },
+    { name = "sentinel-connectors-base", editable = "../connectors/_base" },
 ]
 provides-extras = ["dev"]
 
@@ -1053,12 +1059,13 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "httpx", specifier = ">=0.27" },
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.10" },
     { name = "pydantic", specifier = ">=2.7" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.2" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23" },
     { name = "respx", marker = "extra == 'dev'", specifier = ">=0.21" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.4" },
-    { name = "sentinel-connectors-base" },
+    { name = "sentinel-connectors-base", editable = "../connectors/_base" },
 ]
 provides-extras = ["dev"]
 
@@ -1071,6 +1078,7 @@ dependencies = [
     { name = "asyncpg" },
     { name = "clickhouse-driver" },
     { name = "cryptography" },
+    { name = "httpx" },
     { name = "networkx" },
     { name = "pydantic" },
     { name = "python-dotenv" },
@@ -1083,6 +1091,8 @@ requires-dist = [
     { name = "asyncpg", specifier = ">=0.29" },
     { name = "clickhouse-driver", specifier = ">=0.2.9" },
     { name = "cryptography", specifier = ">=42.0" },
+    { name = "httpx", specifier = ">=0.27" },
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.10" },
     { name = "networkx", specifier = ">=3.3" },
     { name = "pydantic", specifier = ">=2.7" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.2" },
@@ -1135,6 +1145,7 @@ dependencies = [
     { name = "celery", extra = ["redis"] },
     { name = "pydantic" },
     { name = "python-dotenv" },
+    { name = "sentinel-connectors-arize" },
     { name = "sentinel-connectors-base" },
     { name = "sentinel-connectors-langfuse" },
     { name = "sentinel-connectors-langsmith" },
@@ -1146,11 +1157,13 @@ dependencies = [
 requires-dist = [
     { name = "asyncpg", specifier = ">=0.29" },
     { name = "celery", extras = ["redis"], specifier = ">=5.4" },
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.10" },
     { name = "pydantic", specifier = ">=2.7" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.2" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23" },
     { name = "python-dotenv", specifier = ">=1.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.4" },
+    { name = "sentinel-connectors-arize", editable = "../connectors/arize" },
     { name = "sentinel-connectors-base", editable = "../connectors/_base" },
     { name = "sentinel-connectors-langfuse", editable = "../connectors/langfuse" },
     { name = "sentinel-connectors-langsmith", editable = "../connectors/langsmith" },
