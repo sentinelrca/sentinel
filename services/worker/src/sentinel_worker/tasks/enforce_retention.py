@@ -8,6 +8,7 @@ Retention limits by tier (OSS mode — overridden by sentinel-engine when instal
   FREE (0):       7 days
   STARTER+ (1+):  30 days
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -40,16 +41,16 @@ async def _enforce_retention() -> dict:
         workspaces = result.scalars().all()
 
     cleaned = 0
-    errors  = 0
+    errors = 0
     now = datetime.now(timezone.utc)
 
     for ws in workspaces:
         limits = get_tier_limits(ws.tier)
         retention_days: int | None = limits.get("retention_days")
         if retention_days is None:
-            continue   # unlimited retention for this tier
+            continue  # unlimited retention for this tier
 
-        cutoff     = now - timedelta(days=retention_days)
+        cutoff = now - timedelta(days=retention_days)
         cutoff_iso = cutoff.strftime("%Y-%m-%dT%H:%M:%S")
 
         try:

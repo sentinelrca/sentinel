@@ -1,9 +1,9 @@
 """Insights router — list and retrieve insights for a workspace."""
+
 from __future__ import annotations
 
 from datetime import datetime
 from typing import Any
-import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -26,20 +26,20 @@ class InsightPatch(BaseModel):
 
 @router.get("")
 async def list_insights(
-    limit:           int = Query(50, le=200),
-    offset:          int = Query(0, ge=0),
-    severity:        str | None = Query(None),
-    detector_id:     str | None = Query(None),
-    trace_id:        str | None = Query(None),
-    from_time:       datetime | None = Query(None),
-    to_time:         datetime | None = Query(None),
+    limit: int = Query(50, le=200),
+    offset: int = Query(0, ge=0),
+    severity: str | None = Query(None),
+    detector_id: str | None = Query(None),
+    trace_id: str | None = Query(None),
+    from_time: datetime | None = Query(None),
+    to_time: datetime | None = Query(None),
     include_ignored: bool = Query(False),
     workspace: WorkspaceRow = Depends(get_workspace),
 ) -> dict[str, Any]:
     async with get_session() as session:
         base = select(InsightRow).where(
             InsightRow.workspace_id == workspace.id,
-            InsightRow.project_id == None,
+            InsightRow.project_id.is_(None),
         )
         if not include_ignored:
             base = base.where(InsightRow.status == "open")
@@ -54,9 +54,7 @@ async def list_insights(
         if to_time:
             base = base.where(InsightRow.created_at <= to_time)
 
-        count_result = await session.execute(
-            select(func.count()).select_from(base.subquery())
-        )
+        count_result = await session.execute(select(func.count()).select_from(base.subquery()))
         total = count_result.scalar_one()
 
         rows_result = await session.execute(
@@ -79,9 +77,13 @@ async def patch_insight(
     workspace: WorkspaceRow = Depends(get_workspace),
 ) -> dict[str, Any]:
     if body.status is not None and body.status not in _VALID_STATUSES:
-        raise HTTPException(status_code=400, detail=f"status must be one of {sorted(_VALID_STATUSES)}")
+        raise HTTPException(
+            status_code=400, detail=f"status must be one of {sorted(_VALID_STATUSES)}"
+        )
     if body.severity is not None and body.severity not in _VALID_SEVERITIES:
-        raise HTTPException(status_code=400, detail=f"severity must be one of {sorted(_VALID_SEVERITIES)}")
+        raise HTTPException(
+            status_code=400, detail=f"severity must be one of {sorted(_VALID_SEVERITIES)}"
+        )
 
     async with get_session() as session:
         result = await session.execute(

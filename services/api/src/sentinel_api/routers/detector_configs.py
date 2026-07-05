@@ -1,4 +1,5 @@
 """Detector configs router — workspace-level detector overrides."""
+
 from __future__ import annotations
 
 import uuid
@@ -42,10 +43,15 @@ async def upsert_detector_config(
     workspace: WorkspaceRow = Depends(get_workspace),
 ) -> dict[str, Any]:
     if body.action not in _VALID_ACTIONS:
-        raise HTTPException(status_code=400, detail=f"action must be one of {sorted(_VALID_ACTIONS)}")
+        raise HTTPException(
+            status_code=400, detail=f"action must be one of {sorted(_VALID_ACTIONS)}"
+        )
     if body.action == "OVERRIDE_SEVERITY":
         if not body.severity or body.severity not in _VALID_SEVERITIES:
-            raise HTTPException(status_code=400, detail=f"severity required for OVERRIDE_SEVERITY, must be one of {sorted(_VALID_SEVERITIES)}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"severity required for OVERRIDE_SEVERITY, must be one of {sorted(_VALID_SEVERITIES)}",
+            )
 
     async with get_session() as session:
         result = await session.execute(

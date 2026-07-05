@@ -6,6 +6,15 @@ on:
   pull_request:
     branches: [main]
 
+env:
+  # Every Python package under this list is synced with its `dev` extra,
+  # then linted / format-checked / type-checked. Keep in sync across the
+  # lint-python, format-python, and typecheck-python jobs below.
+  PYTHON_PACKAGES: >-
+    services/api services/pipeline services/worker services/ingestor
+    connectors/_base connectors/langfuse connectors/langsmith connectors/arize
+    tools/cli
+
 jobs:
   # ── Python: lint ───────────────────────────────────────────────────────────
   lint-python:
@@ -18,18 +27,47 @@ jobs:
         with:
           version: "latest"
 
-      - name: Ruff — services
+      - name: Ruff check
         run: |
-          for dir in services/api services/pipeline services/worker services/ingestor; do
-            echo "▶ ruff $dir"
-            uv run --project "$dir" ruff check src/
+          for dir in $PYTHON_PACKAGES; do
+            echo "▶ ruff check $dir"
+            (cd "$dir" && uv sync --extra dev && uv run ruff check src/)
           done
 
-      - name: Ruff — connectors
+  # ── Python: format ─────────────────────────────────────────────────────────
+  format-python:
+    name: Format Check Python
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+
+      - name: Ruff format --check
         run: |
-          for dir in connectors/_base connectors/langfuse connectors/langsmith; do
-            echo "▶ ruff $dir"
-            uv run --project "$dir" ruff check src/
+          for dir in $PYTHON_PACKAGES; do
+            echo "▶ ruff format --check $dir"
+            (cd "$dir" && uv sync --extra dev && uv run ruff format --check src/)
+          done
+
+  # ── Python: type check ─────────────────────────────────────────────────────
+  typecheck-python:
+    name: Type Check Python
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+
+      - name: mypy
+        run: |
+          for dir in $PYTHON_PACKAGES; do
+            echo "▶ mypy $dir"
+            (cd "$dir" && uv sync --extra dev && uv run mypy src/)
           done
 
   # ── Python: unit tests ────────────────────────────────────────────────────

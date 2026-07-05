@@ -10,6 +10,7 @@ module does not pull in every connector package at load time, and so
 ``sentinel_pipeline`` carries no module-load dependency on the connectors that
 depend on it.
 """
+
 from __future__ import annotations
 
 import importlib
@@ -20,9 +21,9 @@ if TYPE_CHECKING:
 
 # kind → (module path, class name). Add new connectors here only.
 _CONNECTOR_SPECS: dict[str, tuple[str, str]] = {
-    "langfuse":      ("sentinel_connectors.langfuse",  "LangfuseConnector"),
-    "langsmith":     ("sentinel_connectors.langsmith", "LangSmithConnector"),
-    "arize_phoenix": ("sentinel_connectors.arize",     "ArizePhoenixConnector"),
+    "langfuse": ("sentinel_connectors.langfuse", "LangfuseConnector"),
+    "langsmith": ("sentinel_connectors.langsmith", "LangSmithConnector"),
+    "arize_phoenix": ("sentinel_connectors.arize", "ArizePhoenixConnector"),
 }
 
 _INSTANCES: dict[str, "Connector"] = {}

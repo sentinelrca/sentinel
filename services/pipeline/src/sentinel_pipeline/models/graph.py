@@ -10,17 +10,17 @@ from .span import NormalizedSpan, FlowEdge
 
 @dataclass
 class FlowGraph:
-    trace_id:    str
+    trace_id: str
     workspace_id: str
-    created_at:  datetime
+    created_at: datetime
 
     # span_id → NormalizedSpan
     nodes: dict[str, NormalizedSpan] = field(default_factory=dict)
-    edges: list[FlowEdge]            = field(default_factory=list)
+    edges: list[FlowEdge] = field(default_factory=list)
 
     # Cycle metadata — populated by graph_builder if a cycle is detected
-    has_cycle:   bool       = False
-    cycles:      list[list[str]] = field(default_factory=list)  # each cycle = list of span_ids
+    has_cycle: bool = False
+    cycles: list[list[str]] = field(default_factory=list)  # each cycle = list of span_ids
 
     # Backing NetworkX DiGraph — built lazily or by graph_builder
     _digraph: nx.DiGraph | None = field(default=None, repr=False, compare=False)

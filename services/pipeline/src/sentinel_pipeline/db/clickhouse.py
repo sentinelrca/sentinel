@@ -6,6 +6,7 @@ without any changes. The actual implementation lives in sentinel_pipeline.storag
 To switch backends, set SENTINEL_STORAGE_BACKEND=tinybird in the environment.
 Default is clickhouse (self-hosted Docker / on-prem).
 """
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -55,9 +56,7 @@ def fetch_project_spans(project_id: str, workspace_id: str) -> list[dict]:
     return get_span_store().fetch_project_spans(project_id, workspace_id)
 
 
-def fetch_project_trace_spans(
-    project_id: str, trace_id: str, workspace_id: str
-) -> list[dict]:
+def fetch_project_trace_spans(project_id: str, trace_id: str, workspace_id: str) -> list[dict]:
     return get_span_store().fetch_project_trace_spans(project_id, trace_id, workspace_id)
 
 

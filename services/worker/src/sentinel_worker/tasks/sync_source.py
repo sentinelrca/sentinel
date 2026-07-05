@@ -20,7 +20,7 @@ def sync_source(self, source_id: str) -> dict:
         return asyncio.run(_sync_source(source_id))
     except Exception as exc:
         logger.exception("sync_source failed for source %s: %s", source_id, exc)
-        raise self.retry(exc=exc, countdown=30 * (2 ** self.request.retries))
+        raise self.retry(exc=exc, countdown=30 * (2**self.request.retries))
 
 
 async def _sync_source(source_id: str) -> dict:
@@ -38,13 +38,12 @@ async def _sync_source(source_id: str) -> dict:
         if workspace is None:
             logger.warning(
                 "Workspace %s not found for source %s — skipping sync",
-                source.workspace_id, source_id,
+                source.workspace_id,
+                source_id,
             )
             return {"source_id": source_id, "spans": 0, "traces": 0, "skipped": True}
         if workspace.tier < 1:
-            logger.info(
-                "Live sync skipped for free-tier workspace %s", source.workspace_id
-            )
+            logger.info("Live sync skipped for free-tier workspace %s", source.workspace_id)
             return {"source_id": source_id, "spans": 0, "traces": 0, "skipped": True}
 
         workspace_id = str(source.workspace_id)
@@ -74,11 +73,14 @@ async def _sync_source(source_id: str) -> dict:
             source.last_synced_at = datetime.now(timezone.utc)
 
     from sentinel_worker.tasks.process_trace import process_trace
+
     for trace_id in trace_ids:
         process_trace.delay(workspace_id, trace_id, workspace_tier)
 
     logger.info(
         "Synced source %s: %d spans across %d traces",
-        source_id, total_spans, len(trace_ids),
+        source_id,
+        total_spans,
+        len(trace_ids),
     )
     return {"source_id": source_id, "spans": total_spans, "traces": len(trace_ids)}

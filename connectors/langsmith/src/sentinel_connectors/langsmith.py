@@ -12,6 +12,7 @@ LangSmith run_type → SpanKind:
   chain      → CHAIN
   (other)    → GENERIC
 """
+
 from __future__ import annotations
 
 import logging
@@ -29,11 +30,11 @@ _DEFAULT_BASE_URL = "https://api.smith.langchain.com"
 _PAGE_SIZE = 100
 
 _KIND_MAP: dict[str, SpanKind] = {
-    "llm":       SpanKind.LLM_CALL,
-    "tool":      SpanKind.TOOL_INVOKE,
+    "llm": SpanKind.LLM_CALL,
+    "tool": SpanKind.TOOL_INVOKE,
     "retrieval": SpanKind.RETRIEVAL,
-    "agent":     SpanKind.AGENT_INVOKE,
-    "chain":     SpanKind.CHAIN,
+    "agent": SpanKind.AGENT_INVOKE,
+    "chain": SpanKind.CHAIN,
 }
 
 
@@ -58,9 +59,9 @@ class LangSmithConnector(Connector):
         Page through LangSmith runs newer than `since` using cursor-based pagination.
         Yields batches of NormalizedSpan objects.
         """
-        client        = self._client(config)
+        client = self._client(config)
         store_content = config.get("store_content", False)
-        project_name  = config.get("project_name")
+        project_name = config.get("project_name")
         cursor: str | None = None
         since_iso = since.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
@@ -108,9 +109,9 @@ class LangSmithConnector(Connector):
         limit: int = 500,
     ) -> Iterator[list[NormalizedSpan]]:
         """Fetch runs within [since, until], stopping after `limit` spans."""
-        client        = self._client(config)
+        client = self._client(config)
         store_content = config.get("store_content", False)
-        project_name  = config.get("project_name")
+        project_name = config.get("project_name")
         cursor: str | None = None
         since_iso = since.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
         until_iso = until.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
@@ -118,9 +119,9 @@ class LangSmithConnector(Connector):
 
         while True:
             params: dict = {
-                "limit":      _PAGE_SIZE,
+                "limit": _PAGE_SIZE,
                 "start_time": since_iso,
-                "end_time":   until_iso,
+                "end_time": until_iso,
             }
             if project_name:
                 params["project_name"] = project_name
@@ -161,7 +162,7 @@ class LangSmithConnector(Connector):
         workspace_id: str,
     ) -> Iterator[list[NormalizedSpan]]:
         """Fetch all runs for the given trace IDs, one trace at a time."""
-        client        = self._client(config)
+        client = self._client(config)
         store_content = config.get("store_content", False)
 
         for trace_id in trace_ids:
@@ -220,13 +221,9 @@ class LangSmithConnector(Connector):
 
         # Token usage lives under extra.tokens or inputs/outputs metadata
         token_usage = run.get("token_usage") or {}
-        input_tokens = int(
-            token_usage.get("prompt_tokens") or
-            token_usage.get("input_tokens") or 0
-        )
+        input_tokens = int(token_usage.get("prompt_tokens") or token_usage.get("input_tokens") or 0)
         output_tokens = int(
-            token_usage.get("completion_tokens") or
-            token_usage.get("output_tokens") or 0
+            token_usage.get("completion_tokens") or token_usage.get("output_tokens") or 0
         )
 
         extra = run.get("extra") or {}
@@ -236,10 +233,10 @@ class LangSmithConnector(Connector):
         # Model name from serialized LLM or extra
         serialized = run.get("serialized") or {}
         model = (
-            run.get("extra", {}).get("invocation_params", {}).get("model_name") or
-            serialized.get("model_name") or
-            serialized.get("model") or
-            ""
+            run.get("extra", {}).get("invocation_params", {}).get("model_name")
+            or serialized.get("model_name")
+            or serialized.get("model")
+            or ""
         )
 
         attributes: dict = {
@@ -250,10 +247,10 @@ class LangSmithConnector(Connector):
         if store_content:
             if isinstance(run.get("inputs"), dict):
                 attributes["langsmith.inputs"] = run["inputs"]
-                attributes["gen_ai.input"]     = run["inputs"]
+                attributes["gen_ai.input"] = run["inputs"]
             if isinstance(run.get("outputs"), dict):
                 attributes["langsmith.outputs"] = run["outputs"]
-                attributes["gen_ai.output"]     = run["outputs"]
+                attributes["gen_ai.output"] = run["outputs"]
 
         return NormalizedSpan(
             span_id=run["id"],

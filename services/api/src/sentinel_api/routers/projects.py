@@ -1,4 +1,5 @@
 """Projects router — manage and analyze collections of traces."""
+
 from __future__ import annotations
 
 import asyncio
@@ -327,15 +328,19 @@ async def get_project_traces(
         severities = g.severities or []
         worst = max(severities, key=lambda s: _SEVERITY_ORDER.get(s, 0)) if severities else "info"
         span_stats = stats.get(g.trace_id, {"span_count": 0, "llm_calls": 0, "total_ms": 0})
-        items.append({
-            "trace_id": g.trace_id,
-            "worst_severity": worst,
-            "insight_count": g.insight_count,
-            "detector_ids": list(dict.fromkeys(g.detector_ids)),
-            "latest_insight_at": g.latest_insight_at.isoformat() if g.latest_insight_at else None,
-            "span_count": span_stats["span_count"],
-            "llm_calls": span_stats["llm_calls"],
-            "total_ms": span_stats["total_ms"],
-        })
+        items.append(
+            {
+                "trace_id": g.trace_id,
+                "worst_severity": worst,
+                "insight_count": g.insight_count,
+                "detector_ids": list(dict.fromkeys(g.detector_ids)),
+                "latest_insight_at": g.latest_insight_at.isoformat()
+                if g.latest_insight_at
+                else None,
+                "span_count": span_stats["span_count"],
+                "llm_calls": span_stats["llm_calls"],
+                "total_ms": span_stats["total_ms"],
+            }
+        )
 
     return {"items": items, "total": total}

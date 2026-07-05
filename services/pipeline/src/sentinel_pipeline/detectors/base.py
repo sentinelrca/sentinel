@@ -16,10 +16,10 @@ class Detector(ABC):
     themselves to DETECTOR_REGISTRY at import time.
     """
 
-    id:       str      # unique snake_case identifier, e.g. "agent_loop"
-    name:     str      # human-readable, e.g. "Agent Loop"
+    id: str  # unique snake_case identifier, e.g. "agent_loop"
+    name: str  # human-readable, e.g. "Agent Loop"
     severity: Severity
-    tier:     Tier     = Tier.FREE
+    tier: Tier = Tier.FREE
 
     @abstractmethod
     def evaluate(self, graph: FlowGraph, signals: Signals) -> list[Insight] | None:

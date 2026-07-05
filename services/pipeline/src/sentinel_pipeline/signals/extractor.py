@@ -4,6 +4,7 @@ Signal extraction from a FlowGraph.
 Computes derived metrics used by the rule engine. All rules receive
 a Signals object rather than querying the graph directly for performance.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -16,32 +17,32 @@ from sentinel_pipeline.models.span import SpanKind
 
 @dataclass
 class SequentialToolPair:
-    span_id_a:  str
-    span_id_b:  str
-    tool_a:     str
-    tool_b:     str
-    saved_ms:   float  # time that would be saved by parallelising
+    span_id_a: str
+    span_id_b: str
+    tool_a: str
+    tool_b: str
+    saved_ms: float  # time that would be saved by parallelising
 
 
 @dataclass
 class Signals:
     # Latency
-    critical_path_ms:       float = 0.0
-    total_duration_ms:      float = 0.0
+    critical_path_ms: float = 0.0
+    total_duration_ms: float = 0.0
 
     # Tokens
-    total_input_tokens:     int = 0
-    total_output_tokens:    int = 0
+    total_input_tokens: int = 0
+    total_output_tokens: int = 0
 
     # Retries
-    retry_counts:           dict[str, int] = field(default_factory=dict)
+    retry_counts: dict[str, int] = field(default_factory=dict)
     # span_id → retry_count for spans where retry_count > 0
 
     # Parallelisation opportunities
-    sequential_tool_pairs:  list[SequentialToolPair] = field(default_factory=list)
+    sequential_tool_pairs: list[SequentialToolPair] = field(default_factory=list)
 
     # Loop signals
-    loop_nodes:             list[str] = field(default_factory=list)
+    loop_nodes: list[str] = field(default_factory=list)
     # span_ids involved in detected cycles
 
 
@@ -55,7 +56,7 @@ def extract_signals(graph: FlowGraph) -> Signals:
     # --- Token aggregation & retry counts ---
     for span in graph.nodes.values():
         if span.input_tokens:
-            signals.total_input_tokens  += span.input_tokens
+            signals.total_input_tokens += span.input_tokens
         if span.output_tokens:
             signals.total_output_tokens += span.output_tokens
         if span.retry_count > 0:
@@ -65,7 +66,7 @@ def extract_signals(graph: FlowGraph) -> Signals:
     roots = graph.root_spans()
     if roots:
         earliest = min(s.start_time for s in roots)
-        latest   = max(s.end_time   for s in graph.nodes.values())
+        latest = max(s.end_time for s in graph.nodes.values())
         signals.total_duration_ms = (latest - earliest).total_seconds() * 1000
 
     # --- Critical path (longest weighted path in DAG) ---
@@ -140,12 +141,14 @@ def _find_sequential_tools(graph: FlowGraph) -> list[SequentialToolPair]:
                 # Serial wall-clock = a + gap + b; parallel = max(a, b)
                 # Saving = min(a, b) + gap
                 parallel_saving = min(a.duration_ms, b.duration_ms) + gap_ms
-                pairs.append(SequentialToolPair(
-                    span_id_a=a.span_id,
-                    span_id_b=b.span_id,
-                    tool_a=a.name,
-                    tool_b=b.name,
-                    saved_ms=parallel_saving,
-                ))
+                pairs.append(
+                    SequentialToolPair(
+                        span_id_a=a.span_id,
+                        span_id_b=b.span_id,
+                        tool_a=a.name,
+                        tool_b=b.name,
+                        saved_ms=parallel_saving,
+                    )
+                )
 
     return pairs

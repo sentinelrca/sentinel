@@ -7,6 +7,7 @@ Both endpoints are gated by X-Admin-Key header (must match SENTINEL_ADMIN_KEY
 env var). The raw API key is returned exactly once; only its SHA-256 hash is
 stored.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -58,10 +59,10 @@ class WorkspaceCreate(BaseModel):
 
 
 class WorkspaceCreated(BaseModel):
-    id:         str
-    name:       str
-    tier:       int
-    api_key:    str                  # shown once — store it now, it cannot be recovered
+    id: str
+    name: str
+    tier: int
+    api_key: str  # shown once — store it now, it cannot be recovered
     created_at: Optional[datetime]
 
 
@@ -72,7 +73,7 @@ async def create_workspace(body: WorkspaceCreate) -> WorkspaceCreated:
     The raw key is returned in this response only. The server stores only its
     SHA-256 hash. If the key is lost, rotate it via POST /workspaces/{id}/api-keys.
     """
-    raw_key  = _KEY_PREFIX + secrets.token_hex(32)
+    raw_key = _KEY_PREFIX + secrets.token_hex(32)
     key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
 
     async with get_session() as session:
@@ -94,7 +95,7 @@ async def create_workspace(body: WorkspaceCreate) -> WorkspaceCreated:
         )
         session.add(row)
         await session.flush()
-        await session.refresh(row)   # populate server_default fields (created_at)
+        await session.refresh(row)  # populate server_default fields (created_at)
 
     return WorkspaceCreated(
         id=row.id,
@@ -108,13 +109,11 @@ async def create_workspace(body: WorkspaceCreate) -> WorkspaceCreated:
 @router.post("/{workspace_id}/api-keys", status_code=201)
 async def rotate_api_key(workspace_id: str) -> dict:
     """Issue a new API key for an existing workspace, invalidating the previous one."""
-    raw_key  = _KEY_PREFIX + secrets.token_hex(32)
+    raw_key = _KEY_PREFIX + secrets.token_hex(32)
     key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
 
     async with get_session() as session:
-        result = await session.execute(
-            select(WorkspaceRow).where(WorkspaceRow.id == workspace_id)
-        )
+        result = await session.execute(select(WorkspaceRow).where(WorkspaceRow.id == workspace_id))
         row = result.scalar_one_or_none()
         if row is None:
             raise HTTPException(status_code=404, detail="Workspace not found")

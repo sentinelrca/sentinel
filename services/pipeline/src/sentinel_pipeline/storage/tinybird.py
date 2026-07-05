@@ -12,6 +12,7 @@ Tinybird datasources must exist before use. Create them once via:
   tb datasource create --schema infra/tinybird/spans.datasource
   tb datasource create --schema infra/tinybird/project_spans.datasource
 """
+
 from __future__ import annotations
 
 import json
@@ -28,8 +29,8 @@ from sentinel_pipeline.models.span import NormalizedSpan
 logger = logging.getLogger(__name__)
 
 _DEFAULT_HOST = "https://api.tinybird.co"
-_SPANS_DS      = "spans"
-_PROJECT_DS    = "project_spans"
+_SPANS_DS = "spans"
+_PROJECT_DS = "project_spans"
 
 # Allowlist for values interpolated into SQL — prevents injection.
 # IDs from Sentinel are UUIDs (hex + dashes) or short alphanumeric strings.
@@ -58,21 +59,21 @@ def _dt_to_ingest(dt: datetime) -> str:
 
 def _span_to_ndjson(s: NormalizedSpan) -> dict:
     return {
-        "trace_id":        s.trace_id,
-        "span_id":         s.span_id,
-        "parent_span_id":  s.parent_span_id or "",
-        "workspace_id":    s.workspace_id,
-        "name":            s.name,
-        "kind":            s.kind.value,
-        "status":          s.status.value,
-        "start_time":      _dt_to_ingest(s.start_time),
-        "end_time":        _dt_to_ingest(s.end_time),
-        "model":           s.model or "",
-        "agent_name":      s.agent_name or "",
-        "input_tokens":    s.input_tokens or 0,
-        "output_tokens":   s.output_tokens or 0,
-        "retry_count":     s.retry_count,
-        "error_message":   s.error_message or "",
+        "trace_id": s.trace_id,
+        "span_id": s.span_id,
+        "parent_span_id": s.parent_span_id or "",
+        "workspace_id": s.workspace_id,
+        "name": s.name,
+        "kind": s.kind.value,
+        "status": s.status.value,
+        "start_time": _dt_to_ingest(s.start_time),
+        "end_time": _dt_to_ingest(s.end_time),
+        "model": s.model or "",
+        "agent_name": s.agent_name or "",
+        "input_tokens": s.input_tokens or 0,
+        "output_tokens": s.output_tokens or 0,
+        "retry_count": s.retry_count,
+        "error_message": s.error_message or "",
         "attributes_json": json.dumps(s.attributes),
     }
 
@@ -82,11 +83,10 @@ class TinybirdSpanStore:
 
     def __init__(self) -> None:
         self._api_key = os.environ.get("TINYBIRD_API_KEY", "")
-        self._host    = os.environ.get("TINYBIRD_HOST", _DEFAULT_HOST).rstrip("/")
+        self._host = os.environ.get("TINYBIRD_HOST", _DEFAULT_HOST).rstrip("/")
         if not self._api_key:
             raise RuntimeError(
-                "TINYBIRD_API_KEY is not set. "
-                "Get your token from app.tinybird.co → Auth Tokens."
+                "TINYBIRD_API_KEY is not set. Get your token from app.tinybird.co → Auth Tokens."
             )
 
     def _headers(self) -> dict:
@@ -138,10 +138,13 @@ class TinybirdSpanStore:
         for attempt in range(max_retries):
             resp = getattr(httpx, method)(url, **kwargs)
             if resp.status_code == 429:
-                wait = 2 ** attempt  # 1s, 2s, 4s
+                wait = 2**attempt  # 1s, 2s, 4s
                 logger.warning(
                     "Tinybird rate limit (429) on %s — retrying in %ds (attempt %d/%d)",
-                    url, wait, attempt + 1, max_retries,
+                    url,
+                    wait,
+                    attempt + 1,
+                    max_retries,
                 )
                 time.sleep(wait)
                 continue
@@ -157,8 +160,7 @@ class TinybirdSpanStore:
     def ensure_tables(self) -> None:
         """Tinybird datasources are created via CLI/UI — this is a no-op."""
         logger.info(
-            "Tinybird: datasources must be created manually. "
-            "See infra/tinybird/ for schema files."
+            "Tinybird: datasources must be created manually. See infra/tinybird/ for schema files."
         )
 
     # ── Live spans ─────────────────────────────────────────────────────────
@@ -173,7 +175,9 @@ class TinybirdSpanStore:
             raise
 
     def fetch_trace_spans(self, trace_id: str, workspace_id: str) -> list[dict]:
-        tid = _safe_id(trace_id, "trace_id")        # validate before try — injection must not be swallowed
+        tid = _safe_id(
+            trace_id, "trace_id"
+        )  # validate before try — injection must not be swallowed
         wid = _safe_id(workspace_id, "workspace_id")
         try:
             return self._query(
@@ -197,12 +201,10 @@ class TinybirdSpanStore:
             logger.exception("Tinybird: failed to count traces for workspace %s", workspace_id)
             return 0
 
-    def fetch_trace_stats_batch(
-        self, trace_ids: list[str], workspace_id: str
-    ) -> dict[str, dict]:
+    def fetch_trace_stats_batch(self, trace_ids: list[str], workspace_id: str) -> dict[str, dict]:
         if not trace_ids:
             return {}
-        wid      = _safe_id(workspace_id, "workspace_id")
+        wid = _safe_id(workspace_id, "workspace_id")
         ids_list = ", ".join(f"'{_safe_id(t, 'trace_id')}'" for t in trace_ids)
         try:
             rows = self._query(
@@ -216,8 +218,8 @@ class TinybirdSpanStore:
             return {
                 r["trace_id"]: {
                     "span_count": r["span_count"],
-                    "llm_calls":  r["llm_calls"],
-                    "total_ms":   r["total_ms"],
+                    "llm_calls": r["llm_calls"],
+                    "total_ms": r["total_ms"],
                 }
                 for r in rows
             }
@@ -247,7 +249,9 @@ class TinybirdSpanStore:
                 f"SELECT * FROM {_SPANS_DS} WHERE {where} ORDER BY trace_id, start_time"
             )
         except Exception:
-            logger.exception("Tinybird: failed to fetch spans by filter for workspace %s", workspace_id)
+            logger.exception(
+                "Tinybird: failed to fetch spans by filter for workspace %s", workspace_id
+            )
             return []
 
     def delete_spans_older_than(self, workspace_id: str, cutoff_iso: str) -> None:
@@ -273,7 +277,9 @@ class TinybirdSpanStore:
             rows = [{"project_id": project_id, **_span_to_ndjson(s)} for s in spans]
             self._ingest(_PROJECT_DS, rows)
         except Exception:
-            logger.exception("Tinybird: failed to insert %d project spans for project %s", len(spans), project_id)
+            logger.exception(
+                "Tinybird: failed to insert %d project spans for project %s", len(spans), project_id
+            )
             raise
 
     def fetch_project_spans(self, project_id: str, workspace_id: str) -> list[dict]:
@@ -302,7 +308,11 @@ class TinybirdSpanStore:
                 f"AND workspace_id = '{wid}' ORDER BY start_time"
             )
         except Exception:
-            logger.exception("Tinybird: failed to fetch project trace spans for project %s trace %s", project_id, trace_id)
+            logger.exception(
+                "Tinybird: failed to fetch project trace spans for project %s trace %s",
+                project_id,
+                trace_id,
+            )
             return []
 
     def fetch_project_spans_stats_batch(
@@ -310,8 +320,8 @@ class TinybirdSpanStore:
     ) -> dict[str, dict]:
         if not trace_ids:
             return {}
-        pid      = _safe_id(project_id, "project_id")
-        wid      = _safe_id(workspace_id, "workspace_id")
+        pid = _safe_id(project_id, "project_id")
+        wid = _safe_id(workspace_id, "workspace_id")
         ids_list = ", ".join(f"'{_safe_id(t, 'trace_id')}'" for t in trace_ids)
         try:
             rows = self._query(
@@ -325,13 +335,15 @@ class TinybirdSpanStore:
             return {
                 r["trace_id"]: {
                     "span_count": r["span_count"],
-                    "llm_calls":  r["llm_calls"],
-                    "total_ms":   r["total_ms"],
+                    "llm_calls": r["llm_calls"],
+                    "total_ms": r["total_ms"],
                 }
                 for r in rows
             }
         except Exception:
-            logger.exception("Tinybird: failed to fetch project span stats for project %s", project_id)
+            logger.exception(
+                "Tinybird: failed to fetch project span stats for project %s", project_id
+            )
             return {}
 
     def delete_project_spans(self, project_id: str, workspace_id: str) -> None:

@@ -7,9 +7,9 @@ from sentinel_pipeline.signals.extractor import Signals
 from .base import Detector
 
 # --- Tunable thresholds (see M3+ for per-workspace config) ---
-_MIN_TOKEN_GROWTH_RATIO    = 0.10   # expect ≥10% input token growth after retrieval
-_MIN_OVERLAP_RATIO         = 0.05   # Jaccard threshold for content-based grounding check
-_MIN_INPUT_TOKENS_TO_CHECK = 500    # skip token growth check for very small prompts
+_MIN_TOKEN_GROWTH_RATIO = 0.10  # expect ≥10% input token growth after retrieval
+_MIN_OVERLAP_RATIO = 0.05  # Jaccard threshold for content-based grounding check
+_MIN_INPUT_TOKENS_TO_CHECK = 500  # skip token growth check for very small prompts
 
 # Tool invoke names that indicate retrieval when SpanKind.RETRIEVAL is absent.
 # Covers OTel-based frameworks (Google ADK, AutoGen) that emit retrieval as tool calls.
@@ -18,12 +18,21 @@ _MIN_INPUT_TOKENS_TO_CHECK = 500    # skip token growth check for very small pro
 #   Substring — specific compound terms safe to match anywhere in the span name.
 #   Exact     — short generic words (e.g. "search") that are too common as prefixes /
 #               suffixes in unrelated tools (e.g. "search_docs", "lookup_table").
-_RETRIEVAL_SUBSTRING_PATTERNS = frozenset({
-    "similarity_search", "vector_search", "retriever", "retrieve",
-})
-_RETRIEVAL_EXACT_PATTERNS = frozenset({
-    "search", "query", "lookup",
-})
+_RETRIEVAL_SUBSTRING_PATTERNS = frozenset(
+    {
+        "similarity_search",
+        "vector_search",
+        "retriever",
+        "retrieve",
+    }
+)
+_RETRIEVAL_EXACT_PATTERNS = frozenset(
+    {
+        "search",
+        "query",
+        "lookup",
+    }
+)
 
 
 def _get_retrieval_spans(graph: FlowGraph) -> list[NormalizedSpan]:
@@ -36,7 +45,9 @@ def _get_retrieval_spans(graph: FlowGraph) -> list[NormalizedSpan]:
         if s.kind != SpanKind.TOOL_INVOKE:
             continue
         name = s.name.lower()
-        if name in _RETRIEVAL_EXACT_PATTERNS or any(kw in name for kw in _RETRIEVAL_SUBSTRING_PATTERNS):
+        if name in _RETRIEVAL_EXACT_PATTERNS or any(
+            kw in name for kw in _RETRIEVAL_SUBSTRING_PATTERNS
+        ):
             result.append(s)
     return result
 
@@ -101,10 +112,10 @@ class RetrievalWithoutGroundingDetector(Detector):
          (OTel-based stacks: Google ADK, AutoGen, etc. — best effort)
     """
 
-    id       = "retrieval_without_grounding"
-    name     = "Retrieval Without Grounding"
+    id = "retrieval_without_grounding"
+    name = "Retrieval Without Grounding"
     severity = Severity.WARNING
-    tier     = Tier.FREE
+    tier = Tier.FREE
 
     def evaluate(self, graph: FlowGraph, signals: Signals) -> list[Insight] | None:
         retrieval_spans = _get_retrieval_spans(graph)
@@ -184,10 +195,10 @@ class RetrievalWithoutGroundingDetector(Detector):
                         ),
                         affected_span_ids=[ret_span.span_id, llm_span.span_id],
                         evidence={
-                            "retrieval_span":  ret_span.span_id,
-                            "llm_span":        llm_span.span_id,
-                            "overlap_ratio":   round(overlap, 4),
-                            "detection_mode":  "content",
+                            "retrieval_span": ret_span.span_id,
+                            "llm_span": llm_span.span_id,
+                            "overlap_ratio": round(overlap, 4),
+                            "detection_mode": "content",
                         },
                     )
         return None
@@ -231,22 +242,26 @@ class RetrievalWithoutGroundingDetector(Detector):
         # Signal 2: LLM input tokens don't grow after retrieval
         first_ret_time = min(s.start_time for s in retrieval_spans)
         llm_before = [
-            s for s in llm_spans
-            if s.start_time < first_ret_time and s.input_tokens
+            s
+            for s in llm_spans
+            if s.start_time < first_ret_time
+            and s.input_tokens
             and s.input_tokens >= _MIN_INPUT_TOKENS_TO_CHECK
         ]
         llm_after = [
-            s for s in llm_spans
-            if s.start_time > first_ret_time and s.input_tokens
+            s
+            for s in llm_spans
+            if s.start_time > first_ret_time
+            and s.input_tokens
             and s.input_tokens >= _MIN_INPUT_TOKENS_TO_CHECK
         ]
 
         if not llm_before or not llm_after:
             return None  # can't establish a baseline
 
-        avg_before = sum(s.input_tokens for s in llm_before) / len(llm_before)
-        avg_after  = sum(s.input_tokens for s in llm_after)  / len(llm_after)
-        growth     = (avg_after - avg_before) / avg_before if avg_before > 0 else 0.0
+        avg_before = sum(s.input_tokens or 0 for s in llm_before) / len(llm_before)
+        avg_after = sum(s.input_tokens or 0 for s in llm_after) / len(llm_after)
+        growth = (avg_after - avg_before) / avg_before if avg_before > 0 else 0.0
 
         if growth < _MIN_TOKEN_GROWTH_RATIO:
             return Insight(
@@ -271,9 +286,9 @@ class RetrievalWithoutGroundingDetector(Detector):
                 affected_span_ids=[s.span_id for s in retrieval_spans],
                 evidence={
                     "avg_tokens_before_retrieval": round(avg_before),
-                    "avg_tokens_after_retrieval":  round(avg_after),
-                    "growth_ratio":                round(growth, 4),
-                    "detection_mode":              "structural_no_token_growth",
+                    "avg_tokens_after_retrieval": round(avg_after),
+                    "growth_ratio": round(growth, 4),
+                    "detection_mode": "structural_no_token_growth",
                 },
             )
 

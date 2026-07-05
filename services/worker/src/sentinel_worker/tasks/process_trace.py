@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import uuid
-from datetime import datetime, timezone
 
 from sentinel_worker.main import app
 from sentinel_pipeline.db.clickhouse import fetch_trace_spans
@@ -31,7 +29,7 @@ def process_trace(self, workspace_id: str, trace_id: str, workspace_tier: int = 
         return asyncio.run(_process_trace(workspace_id, trace_id, Tier(workspace_tier)))
     except Exception as exc:
         logger.exception("process_trace failed for trace %s: %s", trace_id, exc)
-        raise self.retry(exc=exc, countdown=2 ** self.request.retries)
+        raise self.retry(exc=exc, countdown=2**self.request.retries)
 
 
 async def _process_trace(workspace_id: str, trace_id: str, tier: Tier) -> dict:
@@ -54,7 +52,7 @@ async def _process_trace(workspace_id: str, trace_id: str, tier: Tier) -> dict:
             detector_overrides[cfg.detector_id] = {"action": cfg.action, "severity": cfg.severity}
 
     # 4. Build flow graph + run detectors
-    graph    = build_graph(spans)
+    graph = build_graph(spans)
     insights = run_detectors(graph, workspace_tier=tier, detector_overrides=detector_overrides)
 
     if not insights:
@@ -84,7 +82,7 @@ async def _process_trace(workspace_id: str, trace_id: str, tier: Tier) -> dict:
 
 def _row_to_span(row: dict) -> NormalizedSpan:
     import json as _json
-    from sentinel_pipeline.models.span import SpanKind, SpanStatus
+
     return NormalizedSpan(
         span_id=row["span_id"],
         trace_id=row["trace_id"],

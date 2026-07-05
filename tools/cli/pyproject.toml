@@ -19,6 +19,7 @@ sentinel = "sentinel_cli.main:cli"
 dev = [
     "pytest>=8.2",
     "ruff>=0.4",
+    "mypy>=1.10",
 ]
 
 [tool.uv.sources]
@@ -29,6 +30,10 @@ sentinel-connectors-langfuse = { path = "../../connectors/langfuse", editable = 
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
 
 [build-system]
 requires = ["hatchling"]

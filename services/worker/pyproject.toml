@@ -21,6 +21,7 @@ dev = [
     "pytest>=8.2",
     "pytest-asyncio>=0.23",
     "ruff>=0.4",
+    "mypy>=1.10",
 ]
 
 [tool.uv.sources]
@@ -36,6 +37,10 @@ asyncio_mode = "auto"
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
 
 [build-system]
 requires = ["hatchling"]

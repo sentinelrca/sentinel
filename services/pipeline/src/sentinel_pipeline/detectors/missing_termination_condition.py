@@ -7,8 +7,8 @@ from sentinel_pipeline.signals.extractor import Signals
 from .base import Detector
 
 # Thresholds: a trace this deep almost certainly lacks iteration guards
-_MIN_LLM_CALLS   = 10
-_MIN_AGENT_STEPS  = 4  # at least some agent coordination to distinguish from simple chains
+_MIN_LLM_CALLS = 10
+_MIN_AGENT_STEPS = 4  # at least some agent coordination to distinguish from simple chains
 
 
 class MissingTerminationConditionDetector(Detector):
@@ -23,22 +23,18 @@ class MissingTerminationConditionDetector(Detector):
     leading cause (MAST taxonomy, 2026).
     """
 
-    id       = "missing_termination_condition"
-    name     = "Missing Termination Condition"
+    id = "missing_termination_condition"
+    name = "Missing Termination Condition"
     severity = Severity.HIGH
-    tier     = Tier.FREE
+    tier = Tier.FREE
 
     def evaluate(self, graph: FlowGraph, signals: Signals) -> list[Insight] | None:
         if not graph.nodes:
             return None
 
-        llm_calls = [
-            s for s in graph.nodes.values()
-            if s.kind == SpanKind.LLM_CALL
-        ]
+        llm_calls = [s for s in graph.nodes.values() if s.kind == SpanKind.LLM_CALL]
         agent_steps = [
-            s for s in graph.nodes.values()
-            if s.kind in (SpanKind.AGENT_INVOKE, SpanKind.CHAIN)
+            s for s in graph.nodes.values() if s.kind in (SpanKind.AGENT_INVOKE, SpanKind.CHAIN)
         ]
 
         if len(llm_calls) < _MIN_LLM_CALLS or len(agent_steps) < _MIN_AGENT_STEPS:
@@ -58,30 +54,32 @@ class MissingTerminationConditionDetector(Detector):
 
         llm_span_ids = [s.span_id for s in llm_calls]
 
-        return [Insight(
-            workspace_id=graph.workspace_id,
-            trace_id=graph.trace_id,
-            detector_id=self.id,
-            severity=self.severity,
-            title="No termination condition detected",
-            detail=(
-                f"This trace made {len(llm_calls)} LLM calls across {len(agent_steps)} agent "
-                f"steps with no structural evidence of a max-iteration or token-budget guard. "
-                f"Unbounded agent workflows are the leading cause of runaway costs and "
-                f"infinite loops in production (41.8% of multi-agent failures)."
-            ),
-            recommendation=(
-                "Add an explicit termination guard at the orchestrator level: "
-                "a max_iterations counter, a token budget check, or a step limit. "
-                "Example (LangGraph): set recursion_limit on the graph. "
-                "Example (CrewAI): set max_iter on the crew. "
-                "Also consider a circuit breaker that returns a safe fallback response "
-                "when the limit is reached rather than raising an exception."
-            ),
-            affected_span_ids=llm_span_ids[:10],  # representative sample
-            evidence={
-                "llm_call_count":  len(llm_calls),
-                "agent_step_count": len(agent_steps),
-                "total_span_count": len(graph.nodes),
-            },
-        )]
+        return [
+            Insight(
+                workspace_id=graph.workspace_id,
+                trace_id=graph.trace_id,
+                detector_id=self.id,
+                severity=self.severity,
+                title="No termination condition detected",
+                detail=(
+                    f"This trace made {len(llm_calls)} LLM calls across {len(agent_steps)} agent "
+                    f"steps with no structural evidence of a max-iteration or token-budget guard. "
+                    f"Unbounded agent workflows are the leading cause of runaway costs and "
+                    f"infinite loops in production (41.8% of multi-agent failures)."
+                ),
+                recommendation=(
+                    "Add an explicit termination guard at the orchestrator level: "
+                    "a max_iterations counter, a token budget check, or a step limit. "
+                    "Example (LangGraph): set recursion_limit on the graph. "
+                    "Example (CrewAI): set max_iter on the crew. "
+                    "Also consider a circuit breaker that returns a safe fallback response "
+                    "when the limit is reached rather than raising an exception."
+                ),
+                affected_span_ids=llm_span_ids[:10],  # representative sample
+                evidence={
+                    "llm_call_count": len(llm_calls),
+                    "agent_step_count": len(agent_steps),
+                    "total_span_count": len(graph.nodes),
+                },
+            )
+        ]

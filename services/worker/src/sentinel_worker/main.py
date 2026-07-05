@@ -31,4 +31,5 @@ app.conf.update(
 def _on_worker_ready(**_kwargs):
     """Create ClickHouse tables when the worker process is fully started."""
     from sentinel_pipeline.db.clickhouse import ensure_tables
+
     ensure_tables()

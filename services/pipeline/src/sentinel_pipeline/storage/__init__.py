@@ -9,6 +9,7 @@ Usage:
     store = get_span_store()
     store.insert_spans(spans)
 """
+
 from __future__ import annotations
 
 import os
@@ -31,14 +32,15 @@ def get_span_store() -> SpanStore:
         backend = os.environ.get("SENTINEL_STORAGE_BACKEND", "clickhouse").lower()
         if backend == "tinybird":
             from sentinel_pipeline.storage.tinybird import TinybirdSpanStore
+
             _instance = TinybirdSpanStore()
         elif backend == "clickhouse":
             from sentinel_pipeline.storage.clickhouse import ClickHouseSpanStore
+
             _instance = ClickHouseSpanStore()
         else:
             raise ValueError(
-                f"Unknown SENTINEL_STORAGE_BACKEND='{backend}'. "
-                "Valid values: clickhouse, tinybird"
+                f"Unknown SENTINEL_STORAGE_BACKEND='{backend}'. Valid values: clickhouse, tinybird"
             )
     return _instance
 

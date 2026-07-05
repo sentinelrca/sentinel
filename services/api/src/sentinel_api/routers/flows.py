@@ -1,4 +1,5 @@
 """Flows router — return flow graph JSON for a trace."""
+
 from __future__ import annotations
 
 import asyncio
@@ -49,8 +50,8 @@ async def get_flow(
     graph = build_graph(spans)
 
     total_ms = (
-        (max(s.end_time for s in spans) - min(s.start_time for s in spans)).total_seconds() * 1000
-    )
+        max(s.end_time for s in spans) - min(s.start_time for s in spans)
+    ).total_seconds() * 1000
     llm_calls = sum(1 for s in spans if s.kind == SpanKind.LLM_CALL)
     total_input = sum(s.input_tokens or 0 for s in spans)
     total_output = sum(s.output_tokens or 0 for s in spans)
@@ -99,12 +100,16 @@ def _row_to_span(row: dict) -> NormalizedSpan:
     try:
         kind = SpanKind(row["kind"])
     except ValueError:
-        logger.warning("Unknown SpanKind %r for span %s — falling back to GENERIC", row["kind"], row["span_id"])
+        logger.warning(
+            "Unknown SpanKind %r for span %s — falling back to GENERIC", row["kind"], row["span_id"]
+        )
         kind = SpanKind.GENERIC
     try:
         status = SpanStatus(row["status"])
     except ValueError:
-        logger.warning("Unknown SpanStatus %r for span %s — falling back to OK", row["status"], row["span_id"])
+        logger.warning(
+            "Unknown SpanStatus %r for span %s — falling back to OK", row["status"], row["span_id"]
+        )
         status = SpanStatus.OK
     return NormalizedSpan(
         span_id=row["span_id"],

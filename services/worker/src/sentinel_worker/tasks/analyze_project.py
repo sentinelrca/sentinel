@@ -16,7 +16,7 @@ from sentinel_pipeline.db.postgres import (
 from sqlalchemy import select, delete
 from sentinel_pipeline.graph.builder import build_graph
 from sentinel_pipeline.models.span import NormalizedSpan
-from sentinel_pipeline.models.insight import Tier
+from sentinel_pipeline.models.insight import Insight, Tier
 from sentinel_pipeline.detectors.runner import run_detectors
 from sentinel_worker.tasks.process_trace import _row_to_span
 
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 _SEVERITY_RANK = {"info": 0, "warning": 1, "high": 2, "critical": 3}
 
 
-def _dedupe_insights(insights: list) -> list:
+def _dedupe_insights(insights: list[Insight]) -> list[Insight]:
     """Collapse insights to one per (trace_id, detector_id).
 
     The insights table enforces one row per (workspace, trace, detector,
@@ -33,7 +33,7 @@ def _dedupe_insights(insights: list) -> list:
     trace. Keep the highest-severity insight per key and merge the dropped
     insights' affected_span_ids into it so no span context is lost.
     """
-    kept: dict[tuple[str, str], object] = {}
+    kept: dict[tuple[str, str], Insight] = {}
     for ins in insights:
         key = (ins.trace_id, ins.detector_id)
         winner = kept.get(key)
@@ -68,17 +68,19 @@ def analyze_project(self, project_id: str, workspace_id: str, workspace_tier: in
             engine.sync_engine.dispose()
             asyncio.run(_mark_project_error(project_id, workspace_id))
             raise
-        raise self.retry(exc=exc, countdown=2 ** self.request.retries)
+        raise self.retry(exc=exc, countdown=2**self.request.retries)
 
 
 async def _mark_project_error(project_id: str, workspace_id: str) -> None:
     async with get_session() as session:
-        proj = (await session.execute(
-            select(ProjectRow).where(
-                ProjectRow.id == project_id,
-                ProjectRow.workspace_id == workspace_id,
+        proj = (
+            await session.execute(
+                select(ProjectRow).where(
+                    ProjectRow.id == project_id,
+                    ProjectRow.workspace_id == workspace_id,
+                )
             )
-        )).scalar_one_or_none()
+        ).scalar_one_or_none()
         if proj is not None:
             proj.status = "error"
 
@@ -101,18 +103,21 @@ async def _analyze_project(project_id: str, workspace_id: str, tier: Tier) -> di
     if project.status not in ("ready", "analyzing"):
         logger.warning(
             "Project %s is not ready (status=%s) — import must complete before analysis",
-            project_id, project.status,
+            project_id,
+            project.status,
         )
         return {"project_id": project_id, "insights": 0, "skipped": True}
 
     # 2. Mark as analyzing so the UI can show a spinner
     async with get_session() as session:
-        proj = (await session.execute(
-            select(ProjectRow).where(
-                ProjectRow.id == project_id,
-                ProjectRow.workspace_id == workspace_id,
+        proj = (
+            await session.execute(
+                select(ProjectRow).where(
+                    ProjectRow.id == project_id,
+                    ProjectRow.workspace_id == workspace_id,
+                )
             )
-        )).scalar_one_or_none()
+        ).scalar_one_or_none()
         if proj is not None:
             proj.status = "analyzing"
 
@@ -122,12 +127,14 @@ async def _analyze_project(project_id: str, workspace_id: str, tier: Tier) -> di
     if not raw_rows:
         logger.warning("No spans found in project snapshot %s", project_id)
         async with get_session() as session:
-            proj = (await session.execute(
-                select(ProjectRow).where(
-                    ProjectRow.id == project_id,
-                    ProjectRow.workspace_id == workspace_id,
+            proj = (
+                await session.execute(
+                    select(ProjectRow).where(
+                        ProjectRow.id == project_id,
+                        ProjectRow.workspace_id == workspace_id,
+                    )
                 )
-            )).scalar_one_or_none()
+            ).scalar_one_or_none()
             if proj is not None:
                 proj.status = "ready"
         return {"project_id": project_id, "insights": 0}
@@ -172,20 +179,22 @@ async def _analyze_project(project_id: str, workspace_id: str, tier: Tier) -> di
         )
 
         for insight in all_insights:
-            session.add(InsightRow(
-                id=insight.id,
-                workspace_id=insight.workspace_id,
-                trace_id=insight.trace_id,
-                detector_id=insight.detector_id,
-                severity=insight.severity.value,
-                title=insight.title,
-                detail=insight.detail,
-                recommendation=insight.recommendation,
-                affected_span_ids=insight.affected_span_ids,
-                evidence=insight.evidence,
-                status="open",
-                project_id=project_id,
-            ))
+            session.add(
+                InsightRow(
+                    id=insight.id,
+                    workspace_id=insight.workspace_id,
+                    trace_id=insight.trace_id,
+                    detector_id=insight.detector_id,
+                    severity=insight.severity.value,
+                    title=insight.title,
+                    detail=insight.detail,
+                    recommendation=insight.recommendation,
+                    affected_span_ids=insight.affected_span_ids,
+                    evidence=insight.evidence,
+                    status="open",
+                    project_id=project_id,
+                )
+            )
 
         project_result = await session.execute(
             select(ProjectRow).where(

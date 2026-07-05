@@ -1,4 +1,5 @@
 """import_project_traces — pull traces from a connector into project_spans."""
+
 from __future__ import annotations
 
 import asyncio
@@ -29,7 +30,7 @@ def import_project_traces(
         return asyncio.run(_import_project_traces(project_id, workspace_id, workspace_tier))
     except Exception as exc:
         logger.exception("import_project_traces failed for project %s: %s", project_id, exc)
-        raise self.retry(exc=exc, countdown=30 * (2 ** self.request.retries))
+        raise self.retry(exc=exc, countdown=30 * (2**self.request.retries))
 
 
 async def _import_project_traces(
@@ -67,7 +68,10 @@ async def _import_project_traces(
                 logger.warning(
                     "Import quota exceeded for workspace %s (tier %d): "
                     "%d imports in last 7 days, limit is %d",
-                    workspace_id, workspace_tier, imports_this_week, imports_per_week,
+                    workspace_id,
+                    workspace_tier,
+                    imports_this_week,
+                    imports_per_week,
                 )
                 # Set error status so the API can surface 429/402 to the user
                 project.status = "error"
@@ -122,8 +126,14 @@ async def _import_project_traces(
         if trace_ids:
             batches = connector.pull_by_ids(config, trace_ids, workspace_id)
         else:
-            since = datetime.fromisoformat(date_from_str) if date_from_str else datetime(2020, 1, 1, tzinfo=timezone.utc)
-            until = datetime.fromisoformat(date_to_str) if date_to_str else datetime.now(timezone.utc)
+            since = (
+                datetime.fromisoformat(date_from_str)
+                if date_from_str
+                else datetime(2020, 1, 1, tzinfo=timezone.utc)
+            )
+            until = (
+                datetime.fromisoformat(date_to_str) if date_to_str else datetime.now(timezone.utc)
+            )
             limit = traces_per_import if traces_per_import is not None else 500
             batches = connector.pull_by_window(config, since, until, workspace_id, limit=limit)
 
@@ -146,9 +156,7 @@ async def _import_project_traces(
 
     # Update project: ready, counts, timestamp
     async with get_session() as session:
-        proj_result = await session.execute(
-            select(ProjectRow).where(ProjectRow.id == project_id)
-        )
+        proj_result = await session.execute(select(ProjectRow).where(ProjectRow.id == project_id))
         p = proj_result.scalar_one_or_none()
         if p:
             p.status = "ready"
@@ -158,6 +166,8 @@ async def _import_project_traces(
 
     logger.info(
         "Imported project %s: %d spans across %d traces",
-        project_id, total_spans, len(trace_ids_seen),
+        project_id,
+        total_spans,
+        len(trace_ids_seen),
     )
     return {"project_id": project_id, "traces": len(trace_ids_seen), "spans": total_spans}
