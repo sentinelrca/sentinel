@@ -4,7 +4,7 @@
 -- Applied automatically at worker startup via ensure_tables()
 -- Run manually: clickhouse-client --query "$(cat 003_project_spans.sql)"
 
-CREATE TABLE IF NOT EXISTS project_spans (
+CREATE TABLE IF NOT EXISTS sentinel.project_spans (
     project_id      String,
     trace_id        String,
     span_id         String,
